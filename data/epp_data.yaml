@@ -1,0 +1,14 @@
+# Configuración YOLO para un dataset EPP unificado
+# Si entrenas con los 3 datasets separados (cascos/guantes/chalecos),
+# este archivo puede ser sobrescrito por train_epp.py.
+
+path: data/datasets/epp_unified
+train: images/train
+val: images/val
+test: images/test
+
+nc: 3
+names:
+  0: casco
+  1: guantes
+  2: chaleco
