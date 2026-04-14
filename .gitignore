@@ -1,6 +1,11 @@
 /venv
-yolov8n.pt
+*.pt
 /__pycache__/
 *.tmp
 *.log
 *__pycache__/
+.vscode
+docs/
+data/datasets/cascos_dataset/datasets_download/
+examples/
+scripts/
