@@ -202,6 +202,64 @@ async def detect_image(file: UploadFile = File(...)) -> Dict[str, Any]:
     }
 
 
+@app.post("/api/detect-frame")
+async def detect_frame(file: UploadFile = File(...)) -> Dict[str, Any]:
+    _init_detectors()
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Frame vacío")
+
+    np_buffer = np.frombuffer(raw, dtype=np.uint8)
+    image_bgr = cv2.imdecode(np_buffer, cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise HTTPException(status_code=400, detail="No se pudo decodificar el frame")
+
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    detections = person_detector.detect(image_rgb, conf=YOLO_CONF_THRESHOLD)
+
+    if not detections:
+        return {
+            "person_detected": False,
+            "helmet_detected": False,
+            "boxes": [],
+            "alert": False,
+        }
+
+    boxes: List[Dict[str, Any]] = []
+    for idx, detection in enumerate(detections):
+        bbox = detection["bbox_pixels"]
+        x1, y1, x2, y2 = bbox
+        person_h = max(1, y2 - y1)
+        head_y2 = y1 + int(person_h * HELMET_HEAD_REGION_RATIO)
+        head_bbox = (x1, y1, x2, head_y2)
+
+        crop_rgb = person_detector.crop_person(image_rgb, head_bbox, padding=12)
+        if crop_rgb is None or crop_rgb.size == 0 or crop_rgb.shape[0] < 20 or crop_rgb.shape[1] < 20:
+            crop_rgb = person_detector.crop_person(image_rgb, bbox, padding=10)
+
+        result = helmet_detector.detect(crop_rgb)
+        boxes.append(
+            {
+                "personId": idx,
+                "bbox_pixels": list(map(int, bbox)),
+                "helmetDetected": bool(result.is_compliant),
+                "label": result.label,
+                "confidence": float(result.confidence),
+            }
+        )
+
+    helmet_detected = any(box["helmetDetected"] for box in boxes)
+    alert = any(not box["helmetDetected"] for box in boxes)
+
+    return {
+        "person_detected": True,
+        "helmet_detected": helmet_detected,
+        "boxes": boxes,
+        "alert": alert,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
 

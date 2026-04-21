@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const formatFileSize = (size) => {
   if (!size) {
     return "0 KB";
@@ -16,12 +18,33 @@ const formatFileSize = (size) => {
 };
 
 export default function ImageUploader({ image, onSelectImage, onClearImage }) {
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleChange = (event) => {
     const file = event.target.files?.[0];
     if (file) {
       onSelectImage(file);
     }
     event.target.value = "";
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      onSelectImage(file);
+    }
   };
 
   return (
@@ -31,7 +54,7 @@ export default function ImageUploader({ image, onSelectImage, onClearImage }) {
           <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Carga</p>
           <h2 className="mt-1 text-2xl font-semibold text-white">Cargar imágenes</h2>
           <p className="mt-2 text-sm leading-6 text-steel-300">
-            Selecciona una imagen estática para visualizar el resultado simulado del detector.
+            Arrastra una imagen o selecciónala para visualizar el resultado del detector.
           </p>
         </div>
 
@@ -47,7 +70,14 @@ export default function ImageUploader({ image, onSelectImage, onClearImage }) {
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-steel-950/70 p-4">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`rounded-[1.75rem] border border-dashed bg-steel-950/70 p-4 transition ${
+            isDragging ? "border-accent-400/60 bg-accent-500/5" : "border-white/10"
+          }`}
+        >
           {image ? (
             <div className="space-y-4">
               <div className="overflow-hidden rounded-[1.5rem] border border-white/8 bg-steel-900/90">
@@ -75,7 +105,9 @@ export default function ImageUploader({ image, onSelectImage, onClearImage }) {
               <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-accent-500/15 text-3xl text-accent-200">
                 ⬆
               </div>
-              <p className="mt-4 text-lg font-medium text-white">Suelta una imagen aquí o selecciónala</p>
+              <p className="mt-4 text-lg font-medium text-white">
+                {isDragging ? "Suelta la imagen aquí" : "Arrastra una imagen o selecciónala"}
+              </p>
               <p className="mt-2 max-w-md text-sm leading-6 text-steel-400">
                 El frontend está preparado para trabajar con imágenes de obra y mostrar el resultado del modelo sobre el visor principal.
               </p>

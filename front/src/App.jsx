@@ -4,6 +4,7 @@ import ImageUploader from "./components/ImageUploader";
 import DetectionViewer from "./components/DetectionViewer";
 import DetectionList from "./components/DetectionList";
 import StatsPanel from "./components/StatsPanel";
+import LiveCamera from "./components/LiveCamera";
 import { initialDetectionHistory } from "./data/mockDetections";
 import { analyzeImage } from "./services/detectionService";
 
@@ -38,8 +39,45 @@ const buildHistoryEntry = (image, result) => ({
   modelName: result.modelName,
 });
 
+const buildCameraHistoryEntry = (frameData) => {
+  const boxes = frameData.result.boxes || [];
+  const confidence =
+    boxes.length > 0
+      ? boxes.reduce((sum, b) => sum + b.confidence, 0) / boxes.length
+      : 0;
+
+  return {
+    id: createId(),
+    name: `Frame ${new Date(frameData.timestamp).toLocaleTimeString("es-ES")}`,
+    file: null,
+    timestamp: frameData.timestamp,
+    previewUrl: frameData.frameDataUrl,
+    annotatedPreviewUrl: frameData.frameDataUrl,
+    naturalWidth: frameData.width,
+    naturalHeight: frameData.height,
+    result: "sin casco",
+    confidence: Number(confidence.toFixed(2)),
+    detections: boxes.map((box, i) => ({
+      id: `cam-${i}-${box.personId}`,
+      bbox: {
+        x: box.bbox_pixels[0],
+        y: box.bbox_pixels[1],
+        width: box.bbox_pixels[2] - box.bbox_pixels[0],
+        height: box.bbox_pixels[3] - box.bbox_pixels[1],
+      },
+      helmetDetected: Boolean(box.helmetDetected),
+      label: box.label,
+      confidence: Number(box.confidence),
+      personIndex: box.personId + 1,
+    })),
+    processingTimeMs: 0,
+    modelName: "live-cam",
+  };
+};
+
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mode, setMode] = useState("image");
   const [selectedImage, setSelectedImage] = useState(null);
   const [detections, setDetections] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -48,8 +86,14 @@ export default function App() {
 
   const stats = useMemo(() => {
     const total = history.length;
-    const helmet = history.reduce((sum, item) => sum + item.detections.filter((d) => d.helmetDetected).length, 0);
-    const noHelmet = history.reduce((sum, item) => sum + item.detections.filter((d) => !d.helmetDetected).length, 0);
+    const helmet = history.reduce(
+      (sum, item) => sum + item.detections.filter((d) => d.helmetDetected).length,
+      0,
+    );
+    const noHelmet = history.reduce(
+      (sum, item) => sum + item.detections.filter((d) => !d.helmetDetected).length,
+      0,
+    );
 
     return { total, helmet, noHelmet };
   }, [history]);
@@ -106,7 +150,9 @@ export default function App() {
       }));
       setHistory((current) => [nextEntry, ...current].slice(0, 8));
     } catch (error) {
-      setProcessError(error instanceof Error ? error.message : "Error inesperado procesando la imagen");
+      setProcessError(
+        error instanceof Error ? error.message : "Error inesperado procesando la imagen",
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -137,6 +183,11 @@ export default function App() {
     setProcessError("");
   };
 
+  const handleCameraDetection = (frameData) => {
+    const entry = buildCameraHistoryEntry(frameData);
+    setHistory((current) => [entry, ...current].slice(0, 8));
+  };
+
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
     if (element) {
@@ -162,11 +213,41 @@ export default function App() {
                     Helmet Vision Dashboard
                   </p>
                   <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                    Detección de casco en imágenes estáticas
+                    {mode === "image"
+                      ? "Detección de casco en imágenes estáticas"
+                      : "Detección de casco en tiempo real"}
                   </h1>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-steel-300">
-                    Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones desde un panel moderno, limpio y escalable.
+                    {mode === "image"
+                      ? "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones."
+                      : "Activa la cámara para detectar automáticamente personas sin casco cada segundo."}
                   </p>
+
+                  {/* Mode toggle */}
+                  <div className="mt-4 inline-flex rounded-2xl border border-white/8 bg-steel-900/70 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setMode("image")}
+                      className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                        mode === "image"
+                          ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
+                          : "text-steel-300 hover:text-white"
+                      }`}
+                    >
+                      Modo imagen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("camera")}
+                      className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                        mode === "camera"
+                          ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
+                          : "text-steel-300 hover:text-white"
+                      }`}
+                    >
+                      Cámara en vivo
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 text-center sm:min-w-[360px]">
@@ -188,20 +269,25 @@ export default function App() {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
               <section className="flex flex-col gap-6">
-                <ImageUploader
-                  image={selectedImage}
-                  onSelectImage={handleSelectImage}
-                  onClearImage={handleClearImage}
-                />
-
-                <DetectionViewer
-                  image={selectedImage}
-                  detections={detections}
-                  isProcessing={isProcessing}
-                  processError={processError}
-                  onProcess={handleProcessImage}
-                  onNavigateHistory={() => scrollToSection("history-panel")}
-                />
+                {mode === "image" ? (
+                  <>
+                    <ImageUploader
+                      image={selectedImage}
+                      onSelectImage={handleSelectImage}
+                      onClearImage={handleClearImage}
+                    />
+                    <DetectionViewer
+                      image={selectedImage}
+                      detections={detections}
+                      isProcessing={isProcessing}
+                      processError={processError}
+                      onProcess={handleProcessImage}
+                      onNavigateHistory={() => scrollToSection("history-panel")}
+                    />
+                  </>
+                ) : (
+                  <LiveCamera onCameraDetection={handleCameraDetection} />
+                )}
 
                 <StatsPanel history={history} />
               </section>
