@@ -9,3 +9,14 @@ docs/
 data/datasets/cascos_dataset/datasets_download/
 examples/
 scripts/
+notes.md
+image.png
+node_modules/
+imagen_prueba.png
+images_helmet.jpg
+docs/notes.md
+assets/samples/image.png
+assets/samples/imagen_prueba.png
+./front/package-lock.json
+./front/package.json
+./front/README.md
