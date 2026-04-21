@@ -1,3 +1,4 @@
+import csv
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,7 +16,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.vit_epp_classifier import ViTEPPClassifier
 from utils.device_manager import get_device, get_device_strict, print_device_info
-from config import DEVICE, ViT_TRAINING_CONFIG, ViT_DATASET_ROOT, ViT_SIMPLE_MODEL_PATH
+from config import (
+    DEVICE,
+    EPP_CLASS_NAMES,
+    EPP_CSV_FILENAME,
+    EPP_CSV_LABEL_MAP,
+    ViT_TRAINING_CONFIG,
+    ViT_DATASET_ROOT,
+    ViT_SIMPLE_MODEL_PATH,
+)
 
 
 class ViTEPPDataset(Dataset):
@@ -24,7 +33,13 @@ class ViTEPPDataset(Dataset):
         self.data_dir = Path(data_dir)
         self.split = split
         self.processor = processor
-        self.class_names = ['casco', 'guantes', 'chaleco']
+        self.class_names = list(EPP_CLASS_NAMES)
+        self._class_name_lookup = {name.lower(): name for name in self.class_names}
+        self._csv_label_map = {k.lower(): v for k, v in EPP_CSV_LABEL_MAP.items()}
+        self._csv_class_indices = {}
+        self._csv_rows = {}
+        self.label_source = "json"
+        self._missing_csv_label_warned = False
         self.metadata_keys = {'filename', 'source', 'orig_size', 'num_annotations', 'orig_bbox'}
         self._ignored_label_keys = set()
         self._ignored_label_warn_count = 0
@@ -57,7 +72,73 @@ class ViTEPPDataset(Dataset):
         if len(self.image_files) == 0:
             raise FileNotFoundError(f"No images found in {self.split_dir}")
 
-        print(f"[INFO] Dataset {split} -> {self.split_dir.name}: {len(self.image_files)} muestras")
+        csv_path = self.split_dir / EPP_CSV_FILENAME
+        if csv_path.exists():
+            self._load_csv_labels(csv_path)
+            self.label_source = "csv"
+
+        print(
+            f"[INFO] Dataset {split} -> {self.split_dir.name}: {len(self.image_files)} muestras"
+            f" ({self.label_source})"
+        )
+
+    def _load_csv_labels(self, csv_path: Path) -> None:
+        with open(csv_path, newline='', encoding='utf-8') as file_handle:
+            reader = csv.reader(file_handle)
+            header = next(reader, None)
+            if not header:
+                raise ValueError(f"CSV sin encabezado: {csv_path}")
+
+            normalized = [h.strip() for h in header]
+            try:
+                filename_idx = normalized.index("filename")
+            except ValueError:
+                filename_idx = 0
+
+            for idx, col_name in enumerate(normalized):
+                if idx == filename_idx:
+                    continue
+                col_norm = col_name.lower()
+                mapped = self._csv_label_map.get(col_norm, col_name)
+                mapped_norm = str(mapped).strip().lower()
+                canonical = self._class_name_lookup.get(mapped_norm)
+                if canonical:
+                    self._csv_class_indices[canonical] = idx
+
+            for row in reader:
+                if not row or len(row) <= filename_idx:
+                    continue
+                filename = row[filename_idx].strip()
+                if filename:
+                    self._csv_rows[filename] = row
+
+        if not self._csv_class_indices:
+            raise ValueError(f"CSV sin columnas de clase conocidas: {csv_path}")
+
+        missing = [name for name in self.class_names if name not in self._csv_class_indices]
+        if missing:
+            print(f"[WARN] CSV sin columnas para: {', '.join(missing)}")
+
+    def _labels_from_csv(self, filename: str) -> torch.Tensor:
+        row = self._csv_rows.get(filename)
+        if row is None:
+            if not self._missing_csv_label_warned:
+                print(f"[WARN] CSV sin etiqueta para {filename}; usando ceros")
+                self._missing_csv_label_warned = True
+            values = [0 for _ in self.class_names]
+        else:
+            values = []
+            for class_name in self.class_names:
+                idx = self._csv_class_indices.get(class_name)
+                if idx is None or idx >= len(row):
+                    values.append(0)
+                    continue
+                try:
+                    values.append(int(float(row[idx])))
+                except ValueError:
+                    values.append(0)
+
+        return torch.tensor(values, dtype=torch.float32)
     
     def __len__(self):
         return len(self.image_files)
@@ -67,33 +148,37 @@ class ViTEPPDataset(Dataset):
         from PIL import Image
         
         img_path = self.image_files[idx]
-        label_path = self.data_dir / 'labels' / (img_path.stem + '.json')
         
         # Cargar imagen
         image = Image.open(img_path).convert('RGB')
-        
-        # Cargar etiquetas
-        with open(label_path, 'r') as f:
-            label_dict = json.load(f)
 
-        if not isinstance(label_dict, dict):
-            raise ValueError(f"Formato de label invalido en {label_path}")
+        if self.label_source == "csv":
+            labels = self._labels_from_csv(img_path.name)
+        else:
+            label_path = self.data_dir / 'labels' / (img_path.stem + '.json')
 
-        # Ignora labels fuera de casco/guantes/chaleco (sin contar metadatos conocidos).
-        extra_keys = set(label_dict.keys()) - set(self.class_names) - self.metadata_keys
-        if extra_keys:
-            self._ignored_label_keys.update(extra_keys)
-            if self._ignored_label_warn_count < 3:
-                print(
-                    f"[WARN] Labels no objetivo ignorados en {label_path.name}: "
-                    f"{', '.join(sorted(extra_keys))}"
-                )
-                self._ignored_label_warn_count += 1
-        
-        # Convertir a tensor
-        labels = torch.tensor([
-            int(label_dict.get(cls, 0)) for cls in self.class_names
-        ], dtype=torch.float32)
+            # Cargar etiquetas
+            with open(label_path, 'r') as f:
+                label_dict = json.load(f)
+
+            if not isinstance(label_dict, dict):
+                raise ValueError(f"Formato de label invalido en {label_path}")
+
+            # Ignora labels fuera del objetivo (sin contar metadatos conocidos).
+            extra_keys = set(label_dict.keys()) - set(self.class_names) - self.metadata_keys
+            if extra_keys:
+                self._ignored_label_keys.update(extra_keys)
+                if self._ignored_label_warn_count < 3:
+                    print(
+                        f"[WARN] Labels no objetivo ignorados en {label_path.name}: "
+                        f"{', '.join(sorted(extra_keys))}"
+                    )
+                    self._ignored_label_warn_count += 1
+
+            # Convertir a tensor
+            labels = torch.tensor([
+                int(label_dict.get(cls, 0)) for cls in self.class_names
+            ], dtype=torch.float32)
         
         # Procesar imagen
         if self.processor:
@@ -154,7 +239,6 @@ class ViTEPPTrainer:
             'train_f1': [],
             'val_f1': []
         }
-        self._device_debug_printed = False
 
     def _set_backbone_trainable(self, trainable: bool):
         if not hasattr(self.model, 'vit'):
@@ -210,30 +294,13 @@ class ViTEPPTrainer:
 
             inputs, labels = self._move_batch_to_device(inputs, labels)
 
-            if not self._device_debug_printed:
+            # Reporte único del dispositivo efectivo; la validación fuerte ya ocurre al inicio.
+            if batch_idx == 0:
                 model_device = next(self.model.parameters()).device
-                print("[DEVICE] Verificacion de runtime:")
+                print("[DEVICE] Runtime:")
                 print(f"  - Modelo en: {model_device}")
                 print(f"  - Inputs en: {inputs.device}")
                 print(f"  - Labels en: {labels.device}")
-                
-                # VALIDACIÓN ESTRICTA: FALLA si está en CPU
-                if 'cpu' in str(model_device) or 'cpu' in str(inputs.device) or 'cpu' in str(labels.device):
-                    raise RuntimeError(
-                        f"\n{'='*70}\n"
-                        f"[FATAL ERROR] ENTRENAMIENTO USANDO CPU EN VEZ DE GPU\n"
-                        f"{'='*70}\n"
-                        f"Modelo device: {model_device}\n"
-                        f"Inputs device: {inputs.device}\n"
-                        f"Labels device: {labels.device}\n"
-                        f"\nEste proyecto requiere OBLIGATORIAMENTE GPU DirectML.\n"
-                        f"No se permite calcular en CPU.\n"
-                        f"\nVerifica que DirectML esté correctamente instalado:\n"
-                        f"  pip install torch-directml\n"
-                        f"{'='*70}\n"
-                    )
-                
-                self._device_debug_printed = True
             
             # Forward
             logits = self.model(inputs, apply_sigmoid=False)
@@ -367,7 +434,10 @@ def main():
     
     # Inicializar modelo
     print("\n[INIT] Inicializando modelo ViT...")
-    model = ViTEPPClassifier()
+    model = ViTEPPClassifier(
+        class_names=EPP_CLASS_NAMES,
+        num_labels=ViT_TRAINING_CONFIG.get('num_labels'),
+    )
     processor = model.get_processor()
     print("[OK] Modelo ViT inicializado")
     
@@ -381,15 +451,15 @@ def main():
         print(f"\nEstructura esperada:")
         print(f"  {dataset_root}/")
         print(f"    train/")
-        print(f"      person_0000.jpg")
-        print(f"      person_0001.jpg")
+        print(f"      {EPP_CSV_FILENAME}  (filename, Helmet, No Helmet)")
+        print(f"      imagen_0000.jpg")
         print(f"      ...")
         print(f"    valid/   (o val/)")
-        print(f"      person_5000.jpg")
+        print(f"      {EPP_CSV_FILENAME}")
+        print(f"      imagen_0500.jpg")
         print(f"      ...")
-        print(f"    labels/")
-        print(f"      person_0000.json  ({{\"casco\": 1, \"guantes\": 0, \"chaleco\": 1}})")
-        print(f"      person_0001.json")
+        print(f"    labels/  (legacy JSON)")
+        print(f"      imagen_0000.json  ({{\"casco\": 1}})")
         print(f"      ...")
         return
     

@@ -1,31 +1,55 @@
 """
-Vision Transformer (ViT) para clasificación multi-label de EPP
-Casco, Guantes, Chaleco
+Vision Transformer (ViT) para clasificacion multi-label de EPP.
+Configurable para casco u otros equipos.
 """
 import torch
 import torch.nn as nn
 from transformers import ViTImageProcessor, ViTModel
 from typing import Dict, List, Tuple
 import os
+import sys
+import types
 from utils.device_manager import get_device
+
+
+DEFAULT_CLASS_NAMES = ["casco"]
 
 
 class ViTEPPClassifier(nn.Module):
     """
     Clasificador ViT para atributos EPP multi-label.
-    
+
     Arquitectura:
     - ViT base pre-entrenado (google/vit-base-patch16-224)
-    - Capa de clasificación adaptada para 3 salidas (casco, guantes, chaleco)
+    - Capa de clasificacion adaptable al numero de etiquetas
     - Sigmoid para multi-label + BCEWithLogitsLoss
     """
-    
-    def __init__(self, model_name="google/vit-base-patch16-224", num_labels=3, dropout=0.2):
+
+    def __init__(
+        self,
+        model_name="google/vit-base-patch16-224",
+        num_labels=None,
+        class_names=None,
+        dropout=0.2,
+    ):
         super().__init__()
-        
+
+        if class_names is None:
+            class_names = list(DEFAULT_CLASS_NAMES)
+        else:
+            class_names = list(class_names)
+
+        if num_labels is None:
+            num_labels = len(class_names)
+        elif num_labels != len(class_names):
+            raise ValueError(
+                "num_labels debe coincidir con len(class_names). "
+                f"num_labels={num_labels}, class_names={class_names}"
+            )
+
         self.model_name = model_name
         self.num_labels = num_labels
-        self.class_names = ['casco', 'guantes', 'chaleco']
+        self.class_names = class_names
         
         # Cargar ViT pre-entrenado
         self.vit = ViTModel.from_pretrained(model_name)
@@ -118,11 +142,81 @@ class ViTEPPClassifier(nn.Module):
         print(f"[OK] Modelo guardado en: {save_path}")
     
     @staticmethod
-    def load_model(model_path, device='directml'):
+    def load_model(
+        model_path,
+        device='directml',
+        class_names=None,
+        num_labels=None,
+        model_name="google/vit-base-patch16-224",
+        dropout=0.2,
+    ):
         """Carga un modelo previamente guardado"""
-        model = ViTEPPClassifier()
-        # DirectML no necesita map_location específico
-        model.load_state_dict(torch.load(model_path))
+        model = ViTEPPClassifier(
+            model_name=model_name,
+            num_labels=num_labels,
+            class_names=class_names,
+            dropout=dropout,
+        )
+
+        def _torch_load_cpu(path):
+            # Cargar en CPU evita depender del backend original del checkpoint.
+            try:
+                return torch.load(path, map_location='cpu', weights_only=True)
+            except ModuleNotFoundError as exc:
+                if 'torch.privateuseone' not in str(exc):
+                    raise
+                # Compatibilidad con checkpoints antiguos guardados desde DirectML.
+                sys.modules.setdefault('torch.privateuseone', types.ModuleType('torch.privateuseone'))
+                try:
+                    return torch.load(path, map_location='cpu', weights_only=True)
+                except TypeError:
+                    return torch.load(path, map_location='cpu')
+                except Exception as inner_exc:
+                    if 'Weights only load failed' in str(inner_exc):
+                        return torch.load(path, map_location='cpu', weights_only=False)
+                    raise
+            except TypeError:
+                return torch.load(path, map_location='cpu')
+            except Exception as exc:
+                # Checkpoints legacy pueden no soportar weights_only=True.
+                if 'Weights only load failed' in str(exc):
+                    return torch.load(path, map_location='cpu', weights_only=False)
+                raise
+
+        checkpoint = _torch_load_cpu(model_path)
+
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        else:
+            state_dict = checkpoint
+
+        if isinstance(state_dict, dict):
+            # Quita prefijo comun cuando se guardo con DataParallel/DDP.
+            state_dict = {
+                (k[7:] if k.startswith('module.') else k): v
+                for k, v in state_dict.items()
+            }
+
+        model_state = model.state_dict()
+        filtered_state = {}
+        mismatched_keys = []
+        for key, value in state_dict.items():
+            if key in model_state and model_state[key].shape == value.shape:
+                filtered_state[key] = value
+            else:
+                mismatched_keys.append(key)
+
+        load_report = model.load_state_dict(filtered_state, strict=False)
+        if load_report.missing_keys or load_report.unexpected_keys:
+            print("[WARN] Carga parcial del checkpoint ViT")
+            if load_report.missing_keys:
+                print(f"       Missing keys: {load_report.missing_keys[:5]}")
+            if load_report.unexpected_keys:
+                print(f"       Unexpected keys: {load_report.unexpected_keys[:5]}")
+        if mismatched_keys:
+            print("[WARN] Pesos omitidos por tamano incompatible")
+            print(f"       Mismatched keys: {mismatched_keys[:5]}")
+
         model.to(get_device(device))
         model.eval()
         print(f"[OK] Modelo cargado desde: {model_path}")

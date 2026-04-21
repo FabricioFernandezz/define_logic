@@ -3,15 +3,58 @@ import numpy as np
 from ultralytics import YOLO
 from typing import List, Dict, Tuple
 import os
+from datetime import datetime
+
+
+def _resolve_torch_device(device_config: str):
+    """Resuelve el dispositivo para PyTorch/Ultralytics de forma robusta."""
+    if isinstance(device_config, str) and device_config.lower() == 'directml':
+        try:
+            import torch_directml
+            return torch_directml.device()
+        except Exception:
+            return torch.device('cpu')
+
+    if isinstance(device_config, str) and device_config.lower() == 'cpu':
+        return torch.device('cpu')
+
+    if isinstance(device_config, str) and device_config.lower() == 'cuda' and torch.cuda.is_available():
+        return torch.device('cuda')
+
+    return torch.device('cpu')
 
 
 class PersonDetector:
     def __init__(self, model_name='yolov8n.pt', device='directml', conf_threshold=0.5):
-        self.model = YOLO(model_name)
+        self.model = self._load_yolo_model(model_name)
         self.device = device
+        self.torch_device = _resolve_torch_device(device)
         self.conf_threshold = conf_threshold
-        self.model.to(device)
+        self.model.to(self.torch_device)
         self.person_class_id = 0
+
+    def _load_yolo_model(self, model_name: str):
+        """Carga YOLO y recupera automaticamente si el .pt local esta corrupto."""
+        try:
+            return YOLO(model_name)
+        except RuntimeError as exc:
+            msg = str(exc)
+            is_corrupt_checkpoint = "PytorchStreamReader failed reading zip archive" in msg
+            if not is_corrupt_checkpoint:
+                raise
+
+            model_path = os.path.abspath(model_name)
+            if os.path.isfile(model_path):
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = f"{model_path}.corrupt_{ts}"
+                try:
+                    os.replace(model_path, backup_path)
+                    print(f"[WARN] Peso YOLO corrupto movido a: {backup_path}")
+                except OSError:
+                    pass
+
+            print("[INFO] Reintentando carga de YOLO con descarga limpia...")
+            return YOLO(os.path.basename(model_name))
         
     def detect(self, image: np.ndarray, conf=None) -> List[Dict]:
         if conf is None:

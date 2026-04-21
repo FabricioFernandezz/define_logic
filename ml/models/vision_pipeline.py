@@ -1,7 +1,7 @@
 """
-Pipeline completo de visión por computadora:
-1. Detección de personas con YOLO
-2. Clasificación de EPP por persona con ViT
+Pipeline completo de vision por computadora:
+1. Deteccion de personas con YOLO
+2. Clasificacion de EPP por persona con ViT
 """
 import torch
 import numpy as np
@@ -9,19 +9,20 @@ import cv2
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
+from config import EPP_CLASS_NAMES
 from models.person_detector import PersonDetector
 from models.vit_epp_classifier import ViTEPPClassifier
 
 
 class EPPVisionPipeline:
     """
-    Pipeline E2E de detección y clasificación de EPP
+    Pipeline E2E de deteccion y clasificacion de EPP
     
     Flujo:
     1. Carga imagen
     2. YOLO detecta personas → bounding boxes
     3. Por cada persona: crop + preprocessing
-    4. ViT clasifica EPP (casco, guantes, chaleco)
+    4. ViT clasifica EPP configurables
     5. Retorna resultados estructurados
     """
     
@@ -47,6 +48,7 @@ class EPPVisionPipeline:
         self.yolo_conf = yolo_conf
         self.vit_threshold = vit_threshold
         self.crop_padding = crop_padding
+        self.class_names = list(EPP_CLASS_NAMES)
         
         # Inicializar modelos
         print("[INIT] Cargando detector de personas...")
@@ -58,9 +60,13 @@ class EPPVisionPipeline:
         
         print("[INIT] Cargando ViT classifier...")
         if vit_model_path and Path(vit_model_path).exists():
-            self.vit = ViTEPPClassifier.load_model(vit_model_path, device=device)
+            self.vit = ViTEPPClassifier.load_model(
+                vit_model_path,
+                device=device,
+                class_names=self.class_names,
+            )
         else:
-            self.vit = ViTEPPClassifier().to(device)
+            self.vit = ViTEPPClassifier(class_names=self.class_names).to(device)
             self.vit.eval()
         
         self.vit_processor = self.vit.get_processor()
@@ -83,25 +89,19 @@ class EPPVisionPipeline:
             vit_input = self._prepare_vit_input(crop)
             epp_pred = self.vit.predict(vit_input, threshold=self.vit_threshold)
 
+            epp = {}
+            for class_name in self.class_names:
+                epp[class_name] = {
+                    'present': bool(epp_pred['classes'].get(class_name, False)),
+                    'confidence': float(epp_pred['probabilities'].get(class_name, 0.0)),
+                }
+
             person_result = {
                 'person_id': person_id,
                 'bbox_pixels': bbox_pixels,
                 'bbox_norm': detection['bbox_norm'],
                 'detection_conf': detection['confidence'],
-                'epp': {
-                    'casco': {
-                        'present': epp_pred['classes']['casco'],
-                        'confidence': epp_pred['probabilities']['casco']
-                    },
-                    'guantes': {
-                        'present': epp_pred['classes']['guantes'],
-                        'confidence': epp_pred['probabilities']['guantes']
-                    },
-                    'chaleco': {
-                        'present': epp_pred['classes']['chaleco'],
-                        'confidence': epp_pred['probabilities']['chaleco']
-                    }
-                }
+                'epp': epp,
             }
 
             if return_crops:
@@ -130,11 +130,7 @@ class EPPVisionPipeline:
                         'bbox_pixels': (x1, y1, x2, y2),
                         'bbox_norm': (x1_norm, y1_norm, x2_norm, y2_norm),
                         'detection_conf': float,
-                        'epp': {
-                            'casco': {'present': bool, 'confidence': float},
-                            'guantes': {'present': bool, 'confidence': float},
-                            'chaleco': {'present': bool, 'confidence': float}
-                        },
+                        'epp': { 'label': {'present': bool, 'confidence': float} },
                         'crop': np.ndarray (opcional)
                     },
                     ...
@@ -218,7 +214,9 @@ class EPPVisionPipeline:
             epp = person['epp']
             
             # Determinar color según EPP compliance
-            has_all_epp = all(epp[item]['present'] for item in ['casco', 'guantes', 'chaleco'])
+            has_all_epp = all(
+                epp.get(item, {}).get('present', False) for item in self.class_names
+            )
             bbox_color = color_with_epp if has_all_epp else color_without_epp
             
             # Dibujar bounding box
@@ -226,9 +224,9 @@ class EPPVisionPipeline:
             
             # Etiqueta EPP
             epp_status = []
-            for epp_name in ['casco', 'guantes', 'chaleco']:
-                present = epp[epp_name]['present']
-                conf = epp[epp_name]['confidence']
+            for epp_name in self.class_names:
+                present = epp.get(epp_name, {}).get('present', False)
+                conf = epp.get(epp_name, {}).get('confidence', 0.0)
                 status = "✓" if present else "✗"
                 epp_status.append(f"{epp_name}{status} ({conf:.2f})")
             
