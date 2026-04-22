@@ -5,7 +5,6 @@ import DetectionViewer from "./components/DetectionViewer";
 import DetectionList from "./components/DetectionList";
 import StatsPanel from "./components/StatsPanel";
 import LiveCamera from "./components/LiveCamera";
-import { initialDetectionHistory } from "./data/mockDetections";
 import { analyzeImage } from "./services/detectionService";
 
 const createId = () => {
@@ -82,7 +81,7 @@ export default function App() {
   const [detections, setDetections] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processError, setProcessError] = useState("");
-  const [history, setHistory] = useState(initialDetectionHistory);
+  const [history, setHistory] = useState([]);
 
   const stats = useMemo(() => {
     const total = history.length;
@@ -196,21 +195,21 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-steel-950 text-steel-50">
-      <div className="flex min-h-screen">
+    <div className="h-screen overflow-hidden bg-steel-950 text-steel-50">
+      <div className="flex h-full">
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((value) => !value)}
           onNavigate={scrollToSection}
         />
 
-        <main className="flex-1 px-4 py-4 sm:px-6 lg:px-8">
+        <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-6">
             <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">
-                    Helmet Vision Dashboard
+                    DefineLogic
                   </p>
                   <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                     {mode === "image"

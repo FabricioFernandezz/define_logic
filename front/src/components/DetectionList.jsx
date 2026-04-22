@@ -10,9 +10,7 @@ export default function DetectionList({ items, onSelectItem, formatTimestamp }) 
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Historial</p>
         <h2 className="mt-1 text-2xl font-semibold text-white">Últimas detecciones</h2>
-        <p className="mt-2 text-sm leading-6 text-steel-300">
-          Haz click en una imagen para cargarla otra vez en el visor principal.
-        </p>
+        
       </div>
 
       <div className="mt-5 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
@@ -52,7 +50,7 @@ export default function DetectionList({ items, onSelectItem, formatTimestamp }) 
 
       {items.length === 0 && (
         <div className="mt-4 rounded-3xl border border-dashed border-white/10 bg-steel-950/70 p-6 text-center text-sm text-steel-400">
-          Todavía no hay detecciones en el historial.
+          No hay detecciones aún.
         </div>
       )}
     </section>

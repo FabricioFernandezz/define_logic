@@ -64,7 +64,6 @@ export default function StatsPanel({ history }) {
         </div>
       ) : (
         <p className="mt-5 text-center text-sm text-steel-500">
-          Procesa imágenes o activa la cámara para ver métricas.
         </p>
       )}
     </section>

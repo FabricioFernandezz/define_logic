@@ -54,7 +54,7 @@ export default function ImageUploader({ image, onSelectImage, onClearImage }) {
           <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Carga</p>
           <h2 className="mt-1 text-2xl font-semibold text-white">Cargar imágenes</h2>
           <p className="mt-2 text-sm leading-6 text-steel-300">
-            Arrastra una imagen o selecciónala para visualizar el resultado del detector.
+            Seleccionar una imagen para visualizar el resultado del detector.
           </p>
         </div>
 
@@ -102,14 +102,12 @@ export default function ImageUploader({ image, onSelectImage, onClearImage }) {
             </div>
           ) : (
             <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-white/5 to-transparent px-6 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-accent-500/15 text-3xl text-accent-200">
-                ⬆
-              </div>
+              
               <p className="mt-4 text-lg font-medium text-white">
-                {isDragging ? "Suelta la imagen aquí" : "Arrastra una imagen o selecciónala"}
+                {isDragging ? "Seleccionar imagen para cargar" : "Seleccionar imagen"}
               </p>
               <p className="mt-2 max-w-md text-sm leading-6 text-steel-400">
-                El frontend está preparado para trabajar con imágenes de obra y mostrar el resultado del modelo sobre el visor principal.
+            Cargar imagen para previsualizar
               </p>
             </div>
           )}
@@ -121,7 +119,7 @@ export default function ImageUploader({ image, onSelectImage, onClearImage }) {
             <ul className="mt-3 space-y-3 text-sm text-steel-300">
               <li className="flex gap-3">
                 <span className="mt-1 h-2.5 w-2.5 rounded-full bg-accent-400" />
-                Subir imagen estática desde el disco.
+                Subir imagen.
               </li>
               <li className="flex gap-3">
                 <span className="mt-1 h-2.5 w-2.5 rounded-full bg-ok-400" />

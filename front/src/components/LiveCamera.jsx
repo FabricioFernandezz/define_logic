@@ -132,7 +132,7 @@ export default function LiveCamera({ onCameraDetection }) {
           <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Cámara en vivo</p>
           <h2 className="mt-1 text-2xl font-semibold text-white">Detección en tiempo real</h2>
           <p className="mt-2 text-sm leading-6 text-steel-300">
-            Activa la webcam para detectar cascos automáticamente cada segundo.
+            Activar la cámara para detectar cascos automáticamente cada segundo.
           </p>
         </div>
         {isActive ? (
