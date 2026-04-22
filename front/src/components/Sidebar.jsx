@@ -4,7 +4,7 @@ const menuItems = [
   { id: "history", label: "Historial", hint: "LOG", sub: "Detecciones registradas" },
 ];
 
-export default function Sidebar({ collapsed, onToggle, activeView, onNavigate }) {
+export default function Sidebar({ collapsed, onToggle, activeView, onNavigate, cameraBackground = false }) {
   return (
     <aside
       style={{ width: collapsed ? "70px" : "240px", transition: "width 300ms ease" }}
@@ -53,13 +53,16 @@ export default function Sidebar({ collapsed, onToggle, activeView, onNavigate })
                 }`}
               >
                 <span
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[10px] font-semibold ring-1 transition ${
+                  className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[10px] font-semibold ring-1 transition ${
                     isActive
                       ? "bg-accent-500/20 text-accent-200 ring-accent-400/30"
                       : "bg-steel-900 text-accent-200 ring-white/6 group-hover:bg-accent-500/12 group-hover:text-white"
                   }`}
                 >
                   {item.hint}
+                  {item.id === "live" && cameraBackground && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-ok-400 ring-2 ring-steel-950" />
+                  )}
                 </span>
                 {!collapsed && (
                   <div className="min-w-0">

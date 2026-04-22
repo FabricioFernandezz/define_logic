@@ -4,7 +4,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000
 const SAMPLE_INTERVAL_MS = 1000;
 const COOLDOWN_SECS = 10;
 
-export default function LiveCamera({ onCameraDetection }) {
+export default function LiveCamera({
+  onCameraDetection,
+  active = true,
+  keepAlive = false,
+  onKeepAliveChange,
+  onIsActiveChange,
+}) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -115,6 +121,19 @@ export default function LiveCamera({ onCameraDetection }) {
     }
   }, [captureAndSend]);
 
+  // Stop camera when navigating away from live view (unless keepAlive)
+  useEffect(() => {
+    if (!active && !keepAlive && isActive) {
+      stopCamera();
+    }
+  }, [active, keepAlive, isActive, stopCamera]);
+
+  // Notify parent of running state
+  useEffect(() => {
+    onIsActiveChange?.(isActive);
+  }, [isActive, onIsActiveChange]);
+
+  // Cleanup on unmount
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   const statusBadge = lastResult
@@ -135,23 +154,45 @@ export default function LiveCamera({ onCameraDetection }) {
             Activar la cámara para detectar cascos automáticamente cada segundo.
           </p>
         </div>
-        {isActive ? (
-          <button
-            type="button"
-            onClick={stopCamera}
-            className="inline-flex items-center justify-center rounded-2xl border border-warn-500/30 bg-warn-500/10 px-5 py-3 text-sm font-semibold text-warn-200 transition hover:bg-warn-500/20"
-          >
-            Detener cámara
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={startCamera}
-            className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-accent-500 to-ok-500 px-5 py-3 text-sm font-semibold text-steel-950 transition hover:brightness-110"
-          >
-            Activar cámara
-          </button>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {isActive ? (
+            <button
+              type="button"
+              onClick={stopCamera}
+              className="inline-flex items-center justify-center rounded-2xl border border-warn-500/30 bg-warn-500/10 px-5 py-3 text-sm font-semibold text-warn-200 transition hover:bg-warn-500/20"
+            >
+              Detener cámara
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startCamera}
+              className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-accent-500 to-ok-500 px-5 py-3 text-sm font-semibold text-steel-950 transition hover:brightness-110"
+            >
+              Activar cámara
+            </button>
+          )}
+
+          {/* Background persistence toggle — only when camera is active */}
+          {isActive && (
+            <button
+              type="button"
+              onClick={() => onKeepAliveChange?.(!keepAlive)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                keepAlive
+                  ? "border-ok-500/40 bg-ok-500/15 text-ok-200 hover:bg-ok-500/25"
+                  : "border-white/8 bg-white/5 text-steel-400 hover:border-white/15 hover:text-steel-200"
+              }`}
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  keepAlive ? "animate-pulse bg-ok-400" : "bg-steel-600"
+                }`}
+              />
+              {keepAlive ? "Activa en segundo plano" : "Pausar al cambiar vista"}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -199,13 +240,16 @@ export default function LiveCamera({ onCameraDetection }) {
       </div>
 
       {isActive && (
-        <div className="mt-3 flex gap-3 text-xs text-steel-400">
+        <div className="mt-3 flex flex-wrap gap-3 text-xs text-steel-400">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-ok-400" />
             Activo · muestreo cada 1s
           </span>
           {cooldownRemaining > 0 && (
             <span className="text-warn-300">· cooldown {cooldownRemaining}s</span>
+          )}
+          {keepAlive && (
+            <span className="text-ok-400">· persiste al navegar</span>
           )}
         </div>
       )}

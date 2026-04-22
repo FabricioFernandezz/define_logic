@@ -83,7 +83,7 @@ const VIEW_TITLES = {
 
 const VIEW_SUBTITLES = {
   image: "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones.",
-  live: "Activa la cámara para detectar automáticamente personas sin casco cada segundo.",
+  live: "Activa la cámara para detectar cascos automáticamente cada segundo.",
   history: "Revisa todas las detecciones registradas. Haz click en una para ver el detalle.",
 };
 
@@ -97,6 +97,8 @@ export default function App() {
   const [processError, setProcessError] = useState("");
   const [history, setHistory] = useState([]);
   const [savedDetections, setSavedDetections] = useState([]);
+  const [keepAliveCamera, setKeepAliveCamera] = useState(false);
+  const [isCameraRunning, setIsCameraRunning] = useState(false);
 
   const stats = useMemo(() => {
     const total = history.length;
@@ -210,9 +212,10 @@ export default function App() {
     setActiveView("history");
   };
 
-  const isReview = activeView === "review";
-  const isHistory = activeView === "history";
   const isWorkView = activeView === "image" || activeView === "live";
+  const isHistory = activeView === "history";
+  const isReview = activeView === "review";
+  const cameraBackground = isCameraRunning && activeView !== "live";
 
   return (
     <div className="h-screen overflow-hidden bg-steel-950 text-steel-50">
@@ -222,10 +225,115 @@ export default function App() {
           onToggle={() => setSidebarCollapsed((v) => !v)}
           activeView={activeView}
           onNavigate={handleNavigate}
+          cameraBackground={cameraBackground}
         />
 
         <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-6">
+
+            {/* ── WORK GRID (image + live) — always mounted, CSS hidden when not active ──
+                Keeping it mounted allows LiveCamera to persist in background when keepAlive=true.
+                setInterval and canvas.drawImage work even when ancestor has display:none. */}
+            <div className={!isWorkView ? "hidden" : ""}>
+              <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                      {VIEW_TITLES[activeView] ?? VIEW_TITLES.image}
+                    </h1>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-steel-300">
+                      {VIEW_SUBTITLES[activeView] ?? VIEW_SUBTITLES.image}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-center sm:min-w-[360px]">
+                    <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Procesadas</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{stats.total}</p>
+                    </div>
+                    <div className="rounded-2xl border border-ok-500/20 bg-ok-500/10 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.25em] text-ok-200">Con casco</p>
+                      <p className="mt-2 text-2xl font-semibold text-ok-300">{stats.helmet}</p>
+                    </div>
+                    <div className="rounded-2xl border border-warn-500/20 bg-warn-500/10 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.25em] text-warn-200">Sin casco</p>
+                      <p className="mt-2 text-2xl font-semibold text-warn-300">{stats.noHelmet}</p>
+                    </div>
+                  </div>
+                </div>
+              </header>
+
+              <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
+                <section className="flex flex-col gap-6">
+                  {/* Image section — hidden when live view */}
+                  <div className={activeView !== "image" ? "hidden" : ""}>
+                    <div className="flex flex-col gap-6">
+                      <ImageUploader
+                        image={selectedImage}
+                        onSelectImage={handleSelectImage}
+                        onClearImage={handleClearImage}
+                      />
+                      <DetectionViewer
+                        image={selectedImage}
+                        detections={detections}
+                        isProcessing={isProcessing}
+                        processError={processError}
+                        onProcess={handleProcessImage}
+                        onNavigateHistory={() => handleNavigate("history")}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live camera section — hidden when image view.
+                      Component stays mounted in both cases so keepAlive works. */}
+                  <div className={activeView !== "live" ? "hidden" : ""}>
+                    <LiveCamera
+                      active={activeView === "live"}
+                      keepAlive={keepAliveCamera}
+                      onKeepAliveChange={setKeepAliveCamera}
+                      onIsActiveChange={setIsCameraRunning}
+                      onCameraDetection={handleCameraDetection}
+                    />
+                  </div>
+
+                  <StatsPanel history={history} />
+                </section>
+
+                <aside className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
+                  <DetectionList
+                    items={history}
+                    onSelectItem={handleHistorySelect}
+                    formatTimestamp={formatTimestamp}
+                  />
+                </aside>
+              </div>
+            </div>
+
+            {/* ── HISTORY VIEW ── */}
+            {isHistory && (
+              <div className="animate-fadeUp flex flex-col gap-6">
+                <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                    {VIEW_TITLES.history}
+                  </h1>
+                  <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES.history}</p>
+                  {cameraBackground && (
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-ok-500/30 bg-ok-500/10 px-3 py-1.5 text-xs text-ok-300">
+                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-ok-400" />
+                      Cámara activa en segundo plano · detectando
+                    </div>
+                  )}
+                </header>
+                <DetectionList
+                  items={history}
+                  onSelectItem={handleHistorySelect}
+                  formatTimestamp={formatTimestamp}
+                  fullWidth
+                />
+              </div>
+            )}
 
             {/* ── REVIEW VIEW ── */}
             {isReview && history[currentIndex] && (
@@ -240,92 +348,6 @@ export default function App() {
                 onDelete={handleReviewDelete}
                 onBack={handleReviewBack}
               />
-            )}
-
-            {/* ── HISTORY VIEW ── */}
-            {isHistory && (
-              <div className="animate-fadeUp flex flex-col gap-6">
-                <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                    {VIEW_TITLES.history}
-                  </h1>
-                  <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES.history}</p>
-                </header>
-                <DetectionList
-                  items={history}
-                  onSelectItem={handleHistorySelect}
-                  formatTimestamp={formatTimestamp}
-                  fullWidth
-                />
-              </div>
-            )}
-
-            {/* ── IMAGE / LIVE VIEW ── */}
-            {isWorkView && (
-              <>
-                <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
-                      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        {VIEW_TITLES[activeView]}
-                      </h1>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-steel-300">
-                        {VIEW_SUBTITLES[activeView]}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3 text-center sm:min-w-[360px]">
-                      <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-4 py-3">
-                        <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Procesadas</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{stats.total}</p>
-                      </div>
-                      <div className="rounded-2xl border border-ok-500/20 bg-ok-500/10 px-4 py-3">
-                        <p className="text-xs uppercase tracking-[0.25em] text-ok-200">Con casco</p>
-                        <p className="mt-2 text-2xl font-semibold text-ok-300">{stats.helmet}</p>
-                      </div>
-                      <div className="rounded-2xl border border-warn-500/20 bg-warn-500/10 px-4 py-3">
-                        <p className="text-xs uppercase tracking-[0.25em] text-warn-200">Sin casco</p>
-                        <p className="mt-2 text-2xl font-semibold text-warn-300">{stats.noHelmet}</p>
-                      </div>
-                    </div>
-                  </div>
-                </header>
-
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
-                  <section className="flex flex-col gap-6">
-                    {activeView === "image" ? (
-                      <>
-                        <ImageUploader
-                          image={selectedImage}
-                          onSelectImage={handleSelectImage}
-                          onClearImage={handleClearImage}
-                        />
-                        <DetectionViewer
-                          image={selectedImage}
-                          detections={detections}
-                          isProcessing={isProcessing}
-                          processError={processError}
-                          onProcess={handleProcessImage}
-                          onNavigateHistory={() => handleNavigate("history")}
-                        />
-                      </>
-                    ) : (
-                      <LiveCamera onCameraDetection={handleCameraDetection} />
-                    )}
-                    <StatsPanel history={history} />
-                  </section>
-
-                  <aside className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
-                    <DetectionList
-                      items={history}
-                      onSelectItem={handleHistorySelect}
-                      formatTimestamp={formatTimestamp}
-                    />
-                  </aside>
-                </div>
-              </>
             )}
 
           </div>
