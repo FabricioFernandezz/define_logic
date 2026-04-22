@@ -10,31 +10,46 @@ export default function Sidebar({ collapsed, onToggle, activeView, onNavigate, c
       style={{ width: collapsed ? "70px" : "240px", transition: "width 300ms ease" }}
       className="flex h-full shrink-0 flex-col border-r border-white/6 bg-steel-950/90 backdrop-blur-xl overflow-hidden"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/6 px-3 py-5">
-        <button
-          type="button"
-          className="flex items-center gap-2 text-left min-w-0"
-          onClick={() => onNavigate("image")}
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-400 to-ok-400 text-sm font-black text-steel-950 shadow-lg shadow-accent-500/20">
-            DL
+      <div className="border-b border-white/6 px-3 py-4">
+        {collapsed ? (
+          /* Collapsed: only toggle button, centered */
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={onToggle}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-200 transition hover:border-accent-400/40 hover:bg-white/10"
+              aria-label="Expandir sidebar"
+            >
+              →
+            </button>
           </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">DefineLogic</p>
-              <p className="truncate text-xs text-steel-400">Prevención de accidentes</p>
-            </div>
-          )}
-        </button>
+        ) : (
+          /* Expanded: logo + toggle side by side */
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-2 text-left min-w-0"
+              onClick={() => onNavigate("image")}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-400 to-ok-400 text-sm font-black text-steel-950 shadow-lg shadow-accent-500/20">
+                DL
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">DefineLogic</p>
+                <p className="truncate text-xs text-steel-400">Prevención de accidentes</p>
+              </div>
+            </button>
 
-        <button
-          type="button"
-          onClick={onToggle}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-200 transition hover:border-accent-400/40 hover:bg-white/10"
-          aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-        >
-          {collapsed ? "→" : "←"}
-        </button>
+            <button
+              type="button"
+              onClick={onToggle}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-200 transition hover:border-accent-400/40 hover:bg-white/10"
+              aria-label="Colapsar sidebar"
+            >
+              ←
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 px-2 py-4">

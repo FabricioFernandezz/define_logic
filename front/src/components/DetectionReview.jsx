@@ -220,17 +220,16 @@ export default function DetectionReview({
             </div>
           </section>
 
-          {/* Validation / action panel */}
+          {/* Validacion / action panel */}
           <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
             <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Validación</p>
-            <h3 className="mt-1 text-lg font-semibold text-white">Confirmar decisión de IA</h3>
+            <h3 className="mt-1 text-lg font-semibold text-white">Confirmar decisión</h3>
             <p className="mt-2 text-sm leading-6 text-steel-400">
-              Revisar la detección y confirmar si es correcta para registrarla o eliminarla por
-              falsa detección.
+              Revisar la detección y confirmar o eliminar según la necesidad.
             </p>
 
             <div className="mt-5 flex flex-col gap-3">
-              {/* Save */}
+              {/* Guardar */}
               <button
                 type="button"
                 onClick={() => onSave(entry)}
@@ -240,19 +239,19 @@ export default function DetectionReview({
                 Guardar detección
               </button>
 
-              {/* Delete */}
+              {/* Eliminar */}
               <button
                 type="button"
                 onClick={() => onDelete(entry.id)}
                 className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-warn-500/30 bg-warn-500/10 px-5 py-3.5 text-sm font-semibold text-warn-200 transition hover:bg-warn-500/20 active:scale-[0.98]"
               >
                 <span className="text-base">✕</span>
-                Eliminar (falsa detección)
+                Eliminar
               </button>
             </div>
 
             <p className="mt-4 text-center text-xs text-steel-500">
-              Guardar: registra infracción · Eliminar: descarta error del modelo
+              Guardar: registra infracción · Eliminar: imagenes sin valor o por error del modelo
             </p>
           </section>
         </div>

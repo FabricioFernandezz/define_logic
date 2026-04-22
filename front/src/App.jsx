@@ -90,7 +90,7 @@ const VIEW_SUBTITLES = {
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("image");
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentEntryId, setCurrentEntryId] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [detections, setDetections] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -179,8 +179,7 @@ export default function App() {
   };
 
   const handleHistorySelect = (entry) => {
-    const index = history.findIndex((h) => h.id === entry.id);
-    setCurrentIndex(index >= 0 ? index : 0);
+    setCurrentEntryId(entry.id);
     setActiveView("review");
   };
 
@@ -189,11 +188,13 @@ export default function App() {
   };
 
   const handleReviewPrev = () => {
-    setCurrentIndex((i) => Math.max(0, i - 1));
+    const idx = history.findIndex((h) => h.id === currentEntryId);
+    if (idx > 0) setCurrentEntryId(history[idx - 1].id);
   };
 
   const handleReviewNext = () => {
-    setCurrentIndex((i) => Math.min(history.length - 1, i + 1));
+    const idx = history.findIndex((h) => h.id === currentEntryId);
+    if (idx < history.length - 1) setCurrentEntryId(history[idx + 1].id);
   };
 
   const handleReviewSave = (entry) => {
@@ -204,18 +205,25 @@ export default function App() {
   const handleReviewDelete = (id) => {
     setHistory((current) => {
       const next = current.filter((item) => item.id !== id);
-      if (currentIndex >= next.length && next.length > 0) {
-        setCurrentIndex(next.length - 1);
+      if (next.length === 0) {
+        setActiveView("history");
+      } else {
+        const deletedIdx = current.findIndex((item) => item.id === id);
+        const nextIdx = Math.min(deletedIdx, next.length - 1);
+        setCurrentEntryId(next[nextIdx].id);
       }
       return next;
     });
-    setActiveView("history");
   };
 
   const isWorkView = activeView === "image" || activeView === "live";
   const isHistory = activeView === "history";
   const isReview = activeView === "review";
   const cameraBackground = isCameraRunning && activeView !== "live";
+
+
+  const currentIdx = history.findIndex((h) => h.id === currentEntryId);
+  const currentEntry = currentIdx >= 0 ? history[currentIdx] : null;
 
   return (
     <div className="h-screen overflow-hidden bg-steel-950 text-steel-50">
@@ -231,9 +239,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-6">
 
-            {/* ── WORK GRID (image + live) — always mounted, CSS hidden when not active ──
-                Keeping it mounted allows LiveCamera to persist in background when keepAlive=true.
-                setInterval and canvas.drawImage work even when ancestor has display:none. */}
+            {}
             <div className={!isWorkView ? "hidden" : ""}>
               <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -266,7 +272,7 @@ export default function App() {
 
               <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
                 <section className="flex flex-col gap-6">
-                  {/* Image section — hidden when live view */}
+                
                   <div className={activeView !== "image" ? "hidden" : ""}>
                     <div className="flex flex-col gap-6">
                       <ImageUploader
@@ -285,8 +291,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Live camera section — hidden when image view.
-                      Component stays mounted in both cases so keepAlive works. */}
                   <div className={activeView !== "live" ? "hidden" : ""}>
                     <LiveCamera
                       active={activeView === "live"}
@@ -310,7 +314,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* ── HISTORY VIEW ── */}
+            
             {isHistory && (
               <div className="animate-fadeUp flex flex-col gap-6">
                 <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
@@ -335,11 +339,10 @@ export default function App() {
               </div>
             )}
 
-            {/* ── REVIEW VIEW ── */}
-            {isReview && history[currentIndex] && (
+            {isReview && currentEntry && (
               <DetectionReview
-                entry={history[currentIndex]}
-                currentIndex={currentIndex}
+                entry={currentEntry}
+                currentIndex={currentIdx}
                 totalCount={history.length}
                 formatTimestamp={formatTimestamp}
                 onPrev={handleReviewPrev}
