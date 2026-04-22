@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import ImageUploader from "./components/ImageUploader";
 import DetectionViewer from "./components/DetectionViewer";
 import DetectionList from "./components/DetectionList";
+import DetectionReview from "./components/DetectionReview";
 import StatsPanel from "./components/StatsPanel";
 import LiveCamera from "./components/LiveCamera";
 import { analyzeImage } from "./services/detectionService";
@@ -82,6 +83,8 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processError, setProcessError] = useState("");
   const [history, setHistory] = useState([]);
+  const [reviewEntry, setReviewEntry] = useState(null);
+  const [savedDetections, setSavedDetections] = useState([]);
 
   const stats = useMemo(() => {
     const total = history.length;
@@ -158,22 +161,21 @@ export default function App() {
   };
 
   const handleHistorySelect = (entry) => {
-    setSelectedImage({
-      id: entry.id,
-      file: entry.file,
-      name: entry.name,
-      previewUrl: entry.previewUrl,
-      processedPreviewUrl: entry.annotatedPreviewUrl || null,
-      naturalWidth: entry.naturalWidth,
-      naturalHeight: entry.naturalHeight,
-      result: entry.result,
-      confidence: entry.confidence,
-      detections: entry.detections,
-      modelName: entry.modelName,
-      processingTimeMs: entry.processingTimeMs,
-      timestamp: entry.timestamp,
-    });
-    setDetections(entry.detections);
+    setReviewEntry(entry);
+  };
+
+  const handleReviewBack = () => {
+    setReviewEntry(null);
+  };
+
+  const handleReviewSave = (entry) => {
+    setSavedDetections((current) => [entry, ...current]);
+    setReviewEntry(null);
+  };
+
+  const handleReviewDelete = (id) => {
+    setHistory((current) => current.filter((item) => item.id !== id));
+    setReviewEntry(null);
   };
 
   const handleClearImage = () => {
@@ -205,100 +207,111 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-6">
-            <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">
-                    DefineLogic
-                  </p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                    {mode === "image"
-                      ? "Detección de casco en imágenes estáticas"
-                      : "Detección de casco en tiempo real"}
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-steel-300">
-                    {mode === "image"
-                      ? "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones."
-                      : "Activa la cámara para detectar automáticamente personas sin casco cada segundo."}
-                  </p>
+            {reviewEntry ? (
+              <DetectionReview
+                entry={reviewEntry}
+                formatTimestamp={formatTimestamp}
+                onSave={handleReviewSave}
+                onDelete={handleReviewDelete}
+                onBack={handleReviewBack}
+              />
+            ) : (
+              <>
+                <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">
+                        DefineLogic
+                      </p>
+                      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                        {mode === "image"
+                          ? "Detección de casco en imágenes estáticas"
+                          : "Detección de casco en tiempo real"}
+                      </h1>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-steel-300">
+                        {mode === "image"
+                          ? "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones."
+                          : "Activa la cámara para detectar automáticamente personas sin casco cada segundo."}
+                      </p>
 
-                  {/* Mode toggle */}
-                  <div className="mt-4 inline-flex rounded-2xl border border-white/8 bg-steel-900/70 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setMode("image")}
-                      className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                        mode === "image"
-                          ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
-                          : "text-steel-300 hover:text-white"
-                      }`}
-                    >
-                      Modo imagen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("camera")}
-                      className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                        mode === "camera"
-                          ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
-                          : "text-steel-300 hover:text-white"
-                      }`}
-                    >
-                      Cámara en vivo
-                    </button>
-                  </div>
-                </div>
+                      <div className="mt-4 inline-flex rounded-2xl border border-white/8 bg-steel-900/70 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setMode("image")}
+                          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                            mode === "image"
+                              ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
+                              : "text-steel-300 hover:text-white"
+                          }`}
+                        >
+                          Modo imagen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMode("camera")}
+                          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                            mode === "camera"
+                              ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
+                              : "text-steel-300 hover:text-white"
+                          }`}
+                        >
+                          Cámara en vivo
+                        </button>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-3 gap-3 text-center sm:min-w-[360px]">
-                  <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Procesadas</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{stats.total}</p>
+                    <div className="grid grid-cols-3 gap-3 text-center sm:min-w-[360px]">
+                      <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Procesadas</p>
+                        <p className="mt-2 text-2xl font-semibold text-white">{stats.total}</p>
+                      </div>
+                      <div className="rounded-2xl border border-ok-500/20 bg-ok-500/10 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.25em] text-ok-200">Con casco</p>
+                        <p className="mt-2 text-2xl font-semibold text-ok-300">{stats.helmet}</p>
+                      </div>
+                      <div className="rounded-2xl border border-warn-500/20 bg-warn-500/10 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.25em] text-warn-200">Sin casco</p>
+                        <p className="mt-2 text-2xl font-semibold text-warn-300">{stats.noHelmet}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="rounded-2xl border border-ok-500/20 bg-ok-500/10 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.25em] text-ok-200">Con casco</p>
-                    <p className="mt-2 text-2xl font-semibold text-ok-300">{stats.helmet}</p>
-                  </div>
-                  <div className="rounded-2xl border border-warn-500/20 bg-warn-500/10 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.25em] text-warn-200">Sin casco</p>
-                    <p className="mt-2 text-2xl font-semibold text-warn-300">{stats.noHelmet}</p>
-                  </div>
-                </div>
-              </div>
-            </header>
+                </header>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
-              <section className="flex flex-col gap-6">
-                {mode === "image" ? (
-                  <>
-                    <ImageUploader
-                      image={selectedImage}
-                      onSelectImage={handleSelectImage}
-                      onClearImage={handleClearImage}
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
+                  <section className="flex flex-col gap-6">
+                    {mode === "image" ? (
+                      <>
+                        <ImageUploader
+                          image={selectedImage}
+                          onSelectImage={handleSelectImage}
+                          onClearImage={handleClearImage}
+                        />
+                        <DetectionViewer
+                          image={selectedImage}
+                          detections={detections}
+                          isProcessing={isProcessing}
+                          processError={processError}
+                          onProcess={handleProcessImage}
+                          onNavigateHistory={() => scrollToSection("history-panel")}
+                        />
+                      </>
+                    ) : (
+                      <LiveCamera onCameraDetection={handleCameraDetection} />
+                    )}
+
+                    <StatsPanel history={history} />
+                  </section>
+
+                  <aside id="history-panel" className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
+                    <DetectionList
+                      items={history}
+                      onSelectItem={handleHistorySelect}
+                      formatTimestamp={formatTimestamp}
                     />
-                    <DetectionViewer
-                      image={selectedImage}
-                      detections={detections}
-                      isProcessing={isProcessing}
-                      processError={processError}
-                      onProcess={handleProcessImage}
-                      onNavigateHistory={() => scrollToSection("history-panel")}
-                    />
-                  </>
-                ) : (
-                  <LiveCamera onCameraDetection={handleCameraDetection} />
-                )}
-
-                <StatsPanel history={history} />
-              </section>
-
-              <aside id="history-panel" className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
-                <DetectionList
-                  items={history}
-                  onSelectItem={handleHistorySelect}
-                  formatTimestamp={formatTimestamp}
-                />
-              </aside>
-            </div>
+                  </aside>
+                </div>
+              </>
+            )}
           </div>
         </main>
       </div>
