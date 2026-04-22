@@ -10,7 +10,17 @@ const resultKey = (result = "") => {
   return "mixto";
 };
 
-export default function DetectionReview({ entry, formatTimestamp, onSave, onDelete, onBack }) {
+export default function DetectionReview({
+  entry,
+  currentIndex,
+  totalCount,
+  formatTimestamp,
+  onPrev,
+  onNext,
+  onSave,
+  onDelete,
+  onBack,
+}) {
   if (!entry) return null;
 
   const rKey = resultKey(entry.result);
@@ -22,17 +32,46 @@ export default function DetectionReview({ entry, formatTimestamp, onSave, onDele
   return (
     <div className="animate-fadeUp flex flex-col gap-6">
       {/* Header bar */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 px-4 py-2 text-sm font-medium text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white"
-        >
-          ← Volver
-        </button>
-        <span className="text-sm text-steel-500">
-          {isCameraFrame ? "Frame de cámara en vivo" : "Imagen procesada"}
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 px-4 py-2 text-sm font-medium text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white"
+          >
+            ← Volver
+          </button>
+          <span className="text-sm text-steel-500">
+            {isCameraFrame ? "Frame de cámara en vivo" : "Imagen procesada"}
+          </span>
+        </div>
+
+        {/* Carousel navigation */}
+        {totalCount > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={currentIndex === 0}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Detección anterior"
+            >
+              ‹
+            </button>
+            <span className="min-w-[4rem] text-center text-xs text-steel-400">
+              {currentIndex + 1} / {totalCount}
+            </span>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={currentIndex === totalCount - 1}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Siguiente detección"
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_380px]">

@@ -75,15 +75,27 @@ const buildCameraHistoryEntry = (frameData) => {
   };
 };
 
+const VIEW_TITLES = {
+  image: "Detección de casco en imágenes",
+  live: "Detección en tiempo real",
+  history: "Historial de detecciones",
+};
+
+const VIEW_SUBTITLES = {
+  image: "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones.",
+  live: "Activa la cámara para detectar automáticamente personas sin casco cada segundo.",
+  history: "Revisa todas las detecciones registradas. Haz click en una para ver el detalle.",
+};
+
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mode, setMode] = useState("image");
+  const [activeView, setActiveView] = useState("image");
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedImage, setSelectedImage] = useState(null);
   const [detections, setDetections] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processError, setProcessError] = useState("");
   const [history, setHistory] = useState([]);
-  const [reviewEntry, setReviewEntry] = useState(null);
   const [savedDetections, setSavedDetections] = useState([]);
 
   const stats = useMemo(() => {
@@ -96,25 +108,22 @@ export default function App() {
       (sum, item) => sum + item.detections.filter((d) => !d.helmetDetected).length,
       0,
     );
-
     return { total, helmet, noHelmet };
   }, [history]);
 
-  const handleSelectImage = async (file) => {
-    if (!file) {
-      return;
-    }
+  const handleNavigate = (view) => {
+    setActiveView(view);
+  };
 
+  const handleSelectImage = async (file) => {
+    if (!file) return;
     const previewUrl = URL.createObjectURL(file);
     const naturalSize = await new Promise((resolve, reject) => {
       const image = new Image();
-      image.onload = () => {
-        resolve({ width: image.naturalWidth, height: image.naturalHeight });
-      };
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
       image.onerror = reject;
       image.src = previewUrl;
     });
-
     setSelectedImage({
       id: createId(),
       file,
@@ -130,16 +139,12 @@ export default function App() {
   };
 
   const handleProcessImage = async () => {
-    if (!selectedImage?.file || isProcessing) {
-      return;
-    }
-
+    if (!selectedImage?.file || isProcessing) return;
     setIsProcessing(true);
     setProcessError("");
     try {
       const result = await analyzeImage(selectedImage.file, selectedImage);
       const nextEntry = buildHistoryEntry(selectedImage, result);
-
       setDetections(result.detections);
       setSelectedImage((current) => ({
         ...current,
@@ -150,7 +155,7 @@ export default function App() {
         detections: result.detections,
         processedPreviewUrl: result.annotatedImage || current.previewUrl,
       }));
-      setHistory((current) => [nextEntry, ...current].slice(0, 8));
+      setHistory((current) => [nextEntry, ...current].slice(0, 20));
     } catch (error) {
       setProcessError(
         error instanceof Error ? error.message : "Error inesperado procesando la imagen",
@@ -158,24 +163,6 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleHistorySelect = (entry) => {
-    setReviewEntry(entry);
-  };
-
-  const handleReviewBack = () => {
-    setReviewEntry(null);
-  };
-
-  const handleReviewSave = (entry) => {
-    setSavedDetections((current) => [entry, ...current]);
-    setReviewEntry(null);
-  };
-
-  const handleReviewDelete = (id) => {
-    setHistory((current) => current.filter((item) => item.id !== id));
-    setReviewEntry(null);
   };
 
   const handleClearImage = () => {
@@ -186,78 +173,107 @@ export default function App() {
 
   const handleCameraDetection = (frameData) => {
     const entry = buildCameraHistoryEntry(frameData);
-    setHistory((current) => [entry, ...current].slice(0, 8));
+    setHistory((current) => [entry, ...current].slice(0, 20));
   };
 
-  const scrollToSection = (id) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+  const handleHistorySelect = (entry) => {
+    const index = history.findIndex((h) => h.id === entry.id);
+    setCurrentIndex(index >= 0 ? index : 0);
+    setActiveView("review");
   };
+
+  const handleReviewBack = () => {
+    setActiveView("history");
+  };
+
+  const handleReviewPrev = () => {
+    setCurrentIndex((i) => Math.max(0, i - 1));
+  };
+
+  const handleReviewNext = () => {
+    setCurrentIndex((i) => Math.min(history.length - 1, i + 1));
+  };
+
+  const handleReviewSave = (entry) => {
+    setSavedDetections((current) => [entry, ...current]);
+    setActiveView("history");
+  };
+
+  const handleReviewDelete = (id) => {
+    setHistory((current) => {
+      const next = current.filter((item) => item.id !== id);
+      if (currentIndex >= next.length && next.length > 0) {
+        setCurrentIndex(next.length - 1);
+      }
+      return next;
+    });
+    setActiveView("history");
+  };
+
+  const isReview = activeView === "review";
+  const isHistory = activeView === "history";
+  const isWorkView = activeView === "image" || activeView === "live";
 
   return (
     <div className="h-screen overflow-hidden bg-steel-950 text-steel-50">
       <div className="flex h-full">
         <Sidebar
           collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed((value) => !value)}
-          onNavigate={scrollToSection}
+          onToggle={() => setSidebarCollapsed((v) => !v)}
+          activeView={activeView}
+          onNavigate={handleNavigate}
         />
 
         <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-6">
-            {reviewEntry ? (
+
+            {/* ── REVIEW VIEW ── */}
+            {isReview && history[currentIndex] && (
               <DetectionReview
-                entry={reviewEntry}
+                entry={history[currentIndex]}
+                currentIndex={currentIndex}
+                totalCount={history.length}
                 formatTimestamp={formatTimestamp}
+                onPrev={handleReviewPrev}
+                onNext={handleReviewNext}
                 onSave={handleReviewSave}
                 onDelete={handleReviewDelete}
                 onBack={handleReviewBack}
               />
-            ) : (
+            )}
+
+            {/* ── HISTORY VIEW ── */}
+            {isHistory && (
+              <div className="animate-fadeUp flex flex-col gap-6">
+                <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                    {VIEW_TITLES.history}
+                  </h1>
+                  <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES.history}</p>
+                </header>
+                <DetectionList
+                  items={history}
+                  onSelectItem={handleHistorySelect}
+                  formatTimestamp={formatTimestamp}
+                  fullWidth
+                />
+              </div>
+            )}
+
+            {/* ── IMAGE / LIVE VIEW ── */}
+            {isWorkView && (
               <>
                 <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl animate-fadeUp">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">
-                        DefineLogic
-                      </p>
+                      <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
                       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        {mode === "image"
-                          ? "Detección de casco en imágenes estáticas"
-                          : "Detección de casco en tiempo real"}
+                        {VIEW_TITLES[activeView]}
                       </h1>
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-steel-300">
-                        {mode === "image"
-                          ? "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones."
-                          : "Activa la cámara para detectar automáticamente personas sin casco cada segundo."}
+                        {VIEW_SUBTITLES[activeView]}
                       </p>
-
-                      <div className="mt-4 inline-flex rounded-2xl border border-white/8 bg-steel-900/70 p-1">
-                        <button
-                          type="button"
-                          onClick={() => setMode("image")}
-                          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                            mode === "image"
-                              ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
-                              : "text-steel-300 hover:text-white"
-                          }`}
-                        >
-                          Modo imagen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMode("camera")}
-                          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                            mode === "camera"
-                              ? "bg-gradient-to-r from-accent-500 to-ok-500 text-steel-950"
-                              : "text-steel-300 hover:text-white"
-                          }`}
-                        >
-                          Cámara en vivo
-                        </button>
-                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3 text-center sm:min-w-[360px]">
@@ -279,7 +295,7 @@ export default function App() {
 
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
                   <section className="flex flex-col gap-6">
-                    {mode === "image" ? (
+                    {activeView === "image" ? (
                       <>
                         <ImageUploader
                           image={selectedImage}
@@ -292,17 +308,16 @@ export default function App() {
                           isProcessing={isProcessing}
                           processError={processError}
                           onProcess={handleProcessImage}
-                          onNavigateHistory={() => scrollToSection("history-panel")}
+                          onNavigateHistory={() => handleNavigate("history")}
                         />
                       </>
                     ) : (
                       <LiveCamera onCameraDetection={handleCameraDetection} />
                     )}
-
                     <StatsPanel history={history} />
                   </section>
 
-                  <aside id="history-panel" className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
+                  <aside className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
                     <DetectionList
                       items={history}
                       onSelectItem={handleHistorySelect}
@@ -312,6 +327,7 @@ export default function App() {
                 </div>
               </>
             )}
+
           </div>
         </main>
       </div>
