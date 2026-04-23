@@ -1,7 +1,8 @@
 const menuItems = [
   { id: "image", label: "Cargar imágenes", hint: "IMG", sub: "Modo imagen estática" },
   { id: "live", label: "Cámara en vivo", hint: "CAM", sub: "Detección en tiempo real" },
-  { id: "history", label: "Historial", hint: "LOG", sub: "Detecciones registradas" },
+  { id: "history", label: "Actividad reciente", hint: "ACT", sub: "Detecciones registradas" },
+  { id: "saved", label: "Imágenes guardadas", hint: "DB", sub: "Registros en base de datos" },
 ];
 
 export default function Sidebar({ collapsed, onToggle, activeView, onNavigate, cameraBackground = false }) {

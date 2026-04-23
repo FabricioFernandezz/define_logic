@@ -62,3 +62,38 @@ export const pingBackend = async () => {
   }
   return response.json();
 };
+
+export const getSavedDetectionsFromBackend = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/saved-detections`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "No se pudo obtener imágenes guardadas");
+  }
+  return response.json();
+};
+
+export const saveDetectionToBackend = async ({ nombre, imagen, descripcion }) => {
+  const response = await fetch(`${API_BASE_URL}/api/saved-detections`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      nombre,
+      imagen,
+      descripcion,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => null);
+    const detail = errorPayload?.detail;
+    const message = typeof detail === "string" ? detail : (detail?.message || "No se pudo guardar la detección");
+    const error = new Error(message);
+    error.status = response.status;
+    error.payload = errorPayload;
+    throw error;
+  }
+
+  return response.json();
+};

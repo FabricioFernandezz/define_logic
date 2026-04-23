@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const RESULT_STYLES = {
   con: { badge: "border-ok-500/30 bg-ok-500/15 text-ok-200", dot: "bg-ok-400" },
   sin: { badge: "border-warn-500/30 bg-warn-500/15 text-warn-200", dot: "bg-warn-400" },
@@ -21,6 +23,12 @@ export default function DetectionReview({
   onDelete,
   onBack,
 }) {
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveDescription, setSaveDescription] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
   if (!entry) return null;
 
   const rKey = resultKey(entry.result);
@@ -28,6 +36,41 @@ export default function DetectionReview({
   const isCameraFrame = entry.modelName === "live-cam";
   const noHelmetPersons = entry.detections.filter((d) => !d.helmetDetected);
   const helmetPersons = entry.detections.filter((d) => d.helmetDetected);
+
+  const openSaveModal = () => {
+    const defaultName = entry.result === "sin casco" ? "Operario sin casco" : entry.name;
+    setSaveName(defaultName || "");
+    setSaveDescription("");
+    setSaveError("");
+    setIsSaveModalOpen(true);
+  };
+
+  const closeSaveModal = () => {
+    if (isSaving) return;
+    setIsSaveModalOpen(false);
+    setSaveDescription("");
+    setSaveError("");
+  };
+
+  const handleConfirmSave = async () => {
+    const nombre = saveName.trim();
+    if (!nombre) {
+      setSaveError("Nombre obligatorio para guardar.");
+      return;
+    }
+
+    setSaveError("");
+    setIsSaving(true);
+    try {
+      await onSave(entry, { nombre, descripcion: saveDescription });
+      setIsSaveModalOpen(false);
+      setSaveDescription("");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "No se pudo guardar detección");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="animate-fadeUp flex flex-col gap-6">
@@ -232,7 +275,7 @@ export default function DetectionReview({
               {/* Guardar */}
               <button
                 type="button"
-                onClick={() => onSave(entry)}
+                onClick={openSaveModal}
                 className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-ok-600 to-ok-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[0.98]"
               >
                 <span className="text-base">✓</span>
@@ -256,6 +299,65 @@ export default function DetectionReview({
           </section>
         </div>
       </div>
+
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-950/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-steel-900/95 p-5 shadow-glow">
+            <p className="text-xs uppercase tracking-[0.28em] text-accent-300/80">Guardar detección</p>
+            <h4 className="mt-2 text-lg font-semibold text-white">Nombre de registro</h4>
+            <p className="mt-1 text-sm text-steel-400">Escribe etiqueta para imagen guardada.</p>
+
+            <div className="mt-4">
+              <label htmlFor="save-name" className="text-xs uppercase tracking-[0.2em] text-steel-400">
+                Nombre
+              </label>
+              <input
+                id="save-name"
+                type="text"
+                value={saveName}
+                onChange={(event) => setSaveName(event.target.value)}
+                disabled={isSaving}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
+                placeholder="Ej: Operario sin casco"
+              />
+            </div>
+
+            <div className="mt-4">
+              <label htmlFor="save-description" className="text-xs uppercase tracking-[0.2em] text-steel-400">
+                Descripción (opcional)
+              </label>
+              <textarea
+                id="save-description"
+                value={saveDescription}
+                onChange={(event) => setSaveDescription(event.target.value)}
+                disabled={isSaving}
+                className="mt-2 min-h-[96px] w-full resize-y rounded-xl border border-white/10 bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
+                placeholder="Ej: Operario ingresó sin casco al área de carga"
+              />
+              {saveError && <p className="mt-2 text-xs text-warn-300">{saveError}</p>}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeSaveModal}
+                disabled={isSaving}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-steel-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={isSaving}
+                className="rounded-xl bg-gradient-to-r from-ok-600 to-ok-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

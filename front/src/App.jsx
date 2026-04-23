@@ -1,12 +1,17 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import ImageUploader from "./components/ImageUploader";
 import DetectionViewer from "./components/DetectionViewer";
 import DetectionList from "./components/DetectionList";
 import DetectionReview from "./components/DetectionReview";
+import SavedDetectionsPanel from "./components/SavedDetectionsPanel";
 import StatsPanel from "./components/StatsPanel";
 import LiveCamera from "./components/LiveCamera";
 import { analyzeImage } from "./services/detectionService";
+import {
+  getSavedDetectionsFromBackend,
+  saveDetectionToBackend,
+} from "./services/apiDetectionService";
 
 const createId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -78,13 +83,15 @@ const buildCameraHistoryEntry = (frameData) => {
 const VIEW_TITLES = {
   image: "Detección de casco en imágenes",
   live: "Detección en tiempo real",
-  history: "Historial de detecciones",
+  history: "Actividad reciente",
+  saved: "Imágenes guardadas",
 };
 
 const VIEW_SUBTITLES = {
   image: "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones.",
   live: "Activa la cámara para detectar cascos automáticamente cada segundo.",
   history: "Revisa todas las detecciones registradas. Haz click en una para ver el detalle.",
+  saved: "Consulta registros persistidos en base de datos y abre imagen guardada en un click.",
 };
 
 export default function App() {
@@ -97,6 +104,10 @@ export default function App() {
   const [processError, setProcessError] = useState("");
   const [history, setHistory] = useState([]);
   const [savedDetections, setSavedDetections] = useState([]);
+  const [savedDetectionsLoading, setSavedDetectionsLoading] = useState(false);
+  const [savedDetectionsError, setSavedDetectionsError] = useState(null);
+  const [selectedSavedDetectionId, setSelectedSavedDetectionId] = useState(null);
+  const [notification, setNotification] = useState(null);
   const [keepAliveCamera, setKeepAliveCamera] = useState(false);
   const [isCameraRunning, setIsCameraRunning] = useState(false);
 
@@ -113,8 +124,47 @@ export default function App() {
     return { total, helmet, noHelmet };
   }, [history]);
 
+  const refreshSavedDetections = useCallback(async () => {
+    setSavedDetectionsLoading(true);
+    setSavedDetectionsError(null);
+    try {
+      const items = await getSavedDetectionsFromBackend();
+      setSavedDetections(Array.isArray(items) ? items : []);
+    } catch {
+      setSavedDetectionsError("No se pudo cargar imágenes guardadas.");
+    } finally {
+      setSavedDetectionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSavedDetections();
+  }, [refreshSavedDetections]);
+
+  useEffect(() => {
+    if (savedDetections.length === 0) {
+      setSelectedSavedDetectionId(null);
+      return;
+    }
+
+    const selectedExists = savedDetections.some((item) => item.id === selectedSavedDetectionId);
+    if (!selectedExists) {
+      setSelectedSavedDetectionId(savedDetections[0].id);
+    }
+  }, [savedDetections, selectedSavedDetectionId]);
+
+  const pushNotification = (payload) => {
+    setNotification({
+      id: createId(),
+      ...payload,
+    });
+  };
+
   const handleNavigate = (view) => {
     setActiveView(view);
+    if (view === "saved") {
+      refreshSavedDetections();
+    }
   };
 
   const handleSelectImage = async (file) => {
@@ -197,9 +247,87 @@ export default function App() {
     if (idx < history.length - 1) setCurrentEntryId(history[idx + 1].id);
   };
 
-  const handleReviewSave = (entry) => {
-    setSavedDetections((current) => [entry, ...current]);
-    setActiveView("history");
+  const handleReviewSave = async (entry, payload) => {
+    const nombre = payload?.nombre?.trim();
+    if (!nombre) {
+      throw new Error("Nombre obligatorio para guardar detección.");
+    }
+
+    const descripcion = payload?.descripcion?.trim() || null;
+
+    const imagen = entry.annotatedPreviewUrl || entry.previewUrl;
+    if (!imagen) {
+      throw new Error("No se encontró imagen para guardar.");
+    }
+
+    const duplicate = savedDetections.find((item) => item.imagen === imagen);
+    if (duplicate) {
+      setSelectedSavedDetectionId(duplicate.id);
+      pushNotification({
+        type: "warning",
+        message: "Imagen ya fue guardada previamente.",
+        action: "open-saved",
+        actionLabel: "Ver imagen",
+        savedId: duplicate.id,
+      });
+      return duplicate;
+    }
+
+    try {
+      const saved = await saveDetectionToBackend({
+        nombre,
+        imagen,
+        descripcion,
+      });
+
+      setSavedDetections((current) => {
+        const exists = current.some((item) => item.id === saved.id);
+        if (exists) return current;
+        return [saved, ...current];
+      });
+      setSelectedSavedDetectionId(saved.id);
+      pushNotification({
+        type: "success",
+        message: "Imagen guardada en base de datos.",
+        action: "open-saved",
+        actionLabel: "Abrir guardadas",
+        savedId: saved.id,
+      });
+      return saved;
+    } catch (error) {
+      const existing = error?.payload?.detail?.existing;
+      if (error?.status === 409 && existing) {
+        setSavedDetections((current) => {
+          const exists = current.some((item) => item.id === existing.id);
+          if (exists) return current;
+          return [existing, ...current];
+        });
+        setSelectedSavedDetectionId(existing.id);
+        pushNotification({
+          type: "warning",
+          message: "Imagen ya fue guardada previamente.",
+          action: "open-saved",
+          actionLabel: "Ver imagen",
+          savedId: existing.id,
+        });
+        return existing;
+      }
+
+      throw new Error(error instanceof Error ? error.message : "No se pudo guardar detección");
+    }
+  };
+
+  const handleNotificationAction = () => {
+    if (!notification) return;
+
+    if (notification.action === "open-saved") {
+      setActiveView("saved");
+      if (notification.savedId) {
+        setSelectedSavedDetectionId(notification.savedId);
+      }
+    }
+
+    setNotification(null);
   };
 
   const handleReviewDelete = (id) => {
@@ -218,6 +346,7 @@ export default function App() {
 
   const isWorkView = activeView === "image" || activeView === "live";
   const isHistory = activeView === "history";
+  const isSaved = activeView === "saved";
   const isReview = activeView === "review";
   const cameraBackground = isCameraRunning && activeView !== "live";
 
@@ -339,6 +468,31 @@ export default function App() {
               </div>
             )}
 
+            {isSaved && (
+              <div className="animate-fadeUp flex flex-col gap-6">
+                <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                    {VIEW_TITLES.saved}
+                  </h1>
+                  <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES.saved}</p>
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-steel-950/70 px-3 py-1.5 text-xs text-steel-300">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-300" />
+                    {savedDetections.length} registros guardados
+                  </div>
+                </header>
+
+                <SavedDetectionsPanel
+                  items={savedDetections}
+                  selectedId={selectedSavedDetectionId}
+                  onSelect={setSelectedSavedDetectionId}
+                  loading={savedDetectionsLoading}
+                  error={savedDetectionsError}
+                  onRetry={refreshSavedDetections}
+                />
+              </div>
+            )}
+
             {isReview && currentEntry && (
               <DetectionReview
                 entry={currentEntry}
@@ -351,6 +505,38 @@ export default function App() {
                 onDelete={handleReviewDelete}
                 onBack={handleReviewBack}
               />
+            )}
+
+            {notification && (
+              <div className="fixed bottom-5 right-5 z-[60] w-full max-w-sm rounded-2xl border border-white/10 bg-steel-900/95 p-4 shadow-glow backdrop-blur-xl">
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`mt-0.5 inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${
+                      notification.type === "warning" ? "bg-warn-400" : "bg-ok-400"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white">{notification.message}</p>
+                    {notification.actionLabel && (
+                      <button
+                        type="button"
+                        onClick={handleNotificationAction}
+                        className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent-300 transition hover:text-accent-200"
+                      >
+                        {notification.actionLabel}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotification(null)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-steel-300 transition hover:bg-white/10"
+                    aria-label="Cerrar notificación"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
             )}
 
           </div>

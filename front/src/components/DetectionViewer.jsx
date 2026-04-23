@@ -47,14 +47,14 @@ export default function DetectionViewer({
             onClick={onNavigateHistory}
             className="inline-flex items-center justify-center rounded-2xl border border-white/8 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:border-white/15 hover:bg-white/10"
           >
-            Ver historial
+            Ver actividad reciente
           </button>
         </div>
       </div>
 
       {image && !image.file && (
         <div className="mt-3 rounded-2xl border border-accent-500/20 bg-accent-500/10 px-4 py-3 text-xs text-accent-100">
-          Esta imagen proviene del historial y no conserva el archivo original. Carga el archivo nuevamente para reprocesar con IA.
+          Esta imagen proviene de actividad reciente y no conserva el archivo original. Carga el archivo nuevamente para reprocesar con IA.
         </div>
       )}
 

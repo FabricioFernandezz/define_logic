@@ -8,7 +8,7 @@ export default function DetectionList({ items, onSelectItem, formatTimestamp }) 
   return (
     <section className="flex h-full flex-col rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Historial</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Actividad reciente</p>
         <h2 className="mt-1 text-2xl font-semibold text-white">Últimas detecciones</h2>
         
       </div>
