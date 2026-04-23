@@ -20,4 +20,4 @@ assets/samples/imagen_prueba.png
 ./front/package-lock.json
 ./front/package.json
 ./front/README.md
-./back/config/.env
+*.env
