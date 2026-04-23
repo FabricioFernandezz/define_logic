@@ -87,11 +87,10 @@ export default function LiveCamera({
       const data = await resp.json();
       setLastResult(data);
 
-      if (data.person_detected && data.alert) {
-        const frameDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      if (data.person_detected && data.alert && data.annotated_frame) {
         triggerCooldown();
         onCameraDetection?.({
-          frameDataUrl,
+          frameDataUrl: data.annotated_frame,
           width: canvas.width,
           height: canvas.height,
           result: data,

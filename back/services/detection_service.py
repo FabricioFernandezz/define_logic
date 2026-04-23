@@ -228,9 +228,15 @@ async def detect_frame(file: UploadFile) -> Dict[str, Any]:
     helmet_detected = any(box["helmetDetected"] for box in boxes)
     alert = any(not box["helmetDetected"] for box in boxes)
 
-    return {
+    payload: Dict[str, Any] = {
         "person_detected": True,
         "helmet_detected": helmet_detected,
         "boxes": boxes,
         "alert": alert,
     }
+
+    if alert:
+        annotated = annotate_image(image_rgb, boxes)
+        payload["annotated_frame"] = encode_image_to_data_url(annotated)
+
+    return payload
