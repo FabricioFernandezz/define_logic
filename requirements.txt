@@ -28,4 +28,7 @@ scikit-learn>=1.8.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
+SQLAlchemy>=2.0.0
+psycopg[binary]>=3.1.0
+python-dotenv>=1.0.0
 
