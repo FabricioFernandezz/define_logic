@@ -81,15 +81,15 @@ const buildCameraHistoryEntry = (frameData) => {
 };
 
 const VIEW_TITLES = {
-  image: "Detección de casco en imágenes",
+  image: "Detección en imágenes",
   live: "Detección en tiempo real",
   history: "Actividad reciente",
   saved: "Imágenes guardadas",
 };
 
 const VIEW_SUBTITLES = {
-  image: "Carga una imagen, procesa el resultado del modelo y revisa las últimas detecciones.",
-  live: "Activa la cámara para detectar cascos automáticamente cada segundo.",
+  image: "Cargar una imagen y el modelo procesa el resultado.",
+  live: "Activar la cámara para detectar cascos automáticamente.",
   history: "Revisa todas las detecciones registradas. Haz click en una para ver el detalle.",
   saved: "Consulta registros persistidos en base de datos y abre imagen guardada en un click.",
 };

@@ -134,11 +134,9 @@ export default function DetectionViewer({
                 ⦿
               </div>
               <h3 className="mt-5 text-xl font-semibold text-white">Visor principal</h3>
-              <p className="mt-2 max-w-lg text-sm leading-6 text-steel-400">
-                Carga una imagen estática para verla aquí con sus boxes de casco/sin casco. La arquitectura ya está conectada a una API Python real.
-              </p>
+              
               <p className="mt-4 text-xs uppercase tracking-[0.3em] text-steel-500">
-                SOLO IMÁGENES ESTÁTICAS
+                SOLO IMÁGENES
               </p>
             </div>
           )}
