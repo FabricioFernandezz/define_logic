@@ -7,7 +7,6 @@ from datetime import datetime
 
 
 def _resolve_torch_device(device_config: str):
-    """Resuelve el dispositivo para PyTorch/Ultralytics de forma robusta."""
     if isinstance(device_config, str) and device_config.lower() == 'directml':
         try:
             import torch_directml
@@ -34,7 +33,6 @@ class PersonDetector:
         self.person_class_id = 0
 
     def _load_yolo_model(self, model_name: str):
-        """Carga YOLO y recupera automaticamente si el .pt local esta corrupto."""
         try:
             return YOLO(model_name)
         except RuntimeError as exc:

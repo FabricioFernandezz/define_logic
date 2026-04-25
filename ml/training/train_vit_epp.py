@@ -1,8 +1,3 @@
-"""Entrypoint organizado para entrenamiento ViT completo.
-
-Uso:
-    python -m ml.training.train_vit_epp
-"""
 
 from __future__ import annotations
 

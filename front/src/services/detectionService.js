@@ -30,7 +30,6 @@ export const analyzeImage = async (file, imageMeta = {}) => {
       if (!ENABLE_MOCK_FALLBACK) {
         throw new Error(
           "No se pudo procesar con el backend real. "
-            + "Verifica que la API esté ejecutándose en http://localhost:8000"
         );
       }
     }
@@ -38,8 +37,7 @@ export const analyzeImage = async (file, imageMeta = {}) => {
 
   if (!ENABLE_MOCK_FALLBACK) {
     throw new Error(
-      "Backend no disponible en http://localhost:8000. "
-        + "Inicia la API con: python -m backend.app"
+      "Error: No se pudo conectar al backend"
     );
   }
 

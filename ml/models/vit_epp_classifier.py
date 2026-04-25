@@ -1,7 +1,3 @@
-"""
-Vision Transformer (ViT) para clasificacion multi-label de EPP.
-Configurable para casco u otros equipos.
-"""
 import torch
 import torch.nn as nn
 from transformers import ViTImageProcessor, ViTModel
@@ -16,15 +12,6 @@ DEFAULT_CLASS_NAMES = ["casco"]
 
 
 class ViTEPPClassifier(nn.Module):
-    """
-    Clasificador ViT para atributos EPP multi-label.
-
-    Arquitectura:
-    - ViT base pre-entrenado (google/vit-base-patch16-224)
-    - Capa de clasificacion adaptable al numero de etiquetas
-    - Sigmoid para multi-label + BCEWithLogitsLoss
-    """
-
     def __init__(
         self,
         model_name="google/vit-base-patch16-224",
@@ -72,24 +59,11 @@ class ViTEPPClassifier(nn.Module):
         self.sigmoid = nn.Sigmoid()
         
     def forward(self, pixel_values, apply_sigmoid=False):
-        """
-        Forward pass
-        
-        Args:
-            pixel_values: Imagen procesada por ViTImageProcessor
-            apply_sigmoid: Si True, aplica sigmoid (para inferencia)
-        
-        Returns:
-            logits: Tensor de shape (batch_size, num_labels) sin activación
-            probs: Tensor de shape (batch_size, num_labels) con sigmoid aplicado
-        """
-        # ViT forward
+
         outputs = self.vit(pixel_values)
         
-        # Usar el [CLS] token (índice 0)
         cls_token = outputs.last_hidden_state[:, 0, :]
         
-        # Cabeza de clasificación
         logits = self.classifier_head(cls_token)
         
         if apply_sigmoid:
@@ -99,16 +73,7 @@ class ViTEPPClassifier(nn.Module):
         return logits
     
     def predict(self, pixel_values, threshold=0.5):
-        """
-        Predicción con etiquetas binarias
-        
-        Args:
-            pixel_values: Imagen procesada
-            threshold: Umbral para binariación (default 0.5)
-        
-        Returns:
-            predictions: Dict con clases y confianzas
-        """
+
         with torch.no_grad():
             logits, probs = self.forward(pixel_values, apply_sigmoid=True)
         
@@ -132,11 +97,9 @@ class ViTEPPClassifier(nn.Module):
         return batch_results if len(batch_results) > 1 else batch_results[0]
     
     def get_processor(self):
-        """Retorna el procesador de imágenes"""
         return self.processor
     
     def save_model(self, save_path):
-        """Guarda el modelo entrenado"""
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         torch.save(self.state_dict(), save_path)
         print(f"[OK] Modelo guardado en: {save_path}")
@@ -150,7 +113,6 @@ class ViTEPPClassifier(nn.Module):
         model_name="google/vit-base-patch16-224",
         dropout=0.2,
     ):
-        """Carga un modelo previamente guardado"""
         model = ViTEPPClassifier(
             model_name=model_name,
             num_labels=num_labels,

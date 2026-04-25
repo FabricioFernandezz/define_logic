@@ -1,12 +1,4 @@
-"""Detectores EPP extensibles basados en ViT.
-
-Este modulo define una jerarquia abierta/cerrada para detectores de EPP:
-- EPPDetector (base abstracta)
-- HelmetDetector (implementacion concreta)
-
-Se pueden agregar detectores futuros (GloveDetector, VestDetector) heredando
-de EPPDetector sin modificar el flujo principal del sistema.
-"""
+"""Detectores EPP extensibles basados en ViT"""
 
 from __future__ import annotations
 
@@ -33,13 +25,7 @@ class EPPDetectionResult:
 
 
 class EPPDetector(ABC):
-    """Interfaz base para detectores EPP.
-
-    Principio abierto/cerrado:
-    - Cerrado a modificacion del flujo principal.
-    - Abierto a extension mediante nuevas subclases.
-    """
-
+  
     def __init__(self, detector_name: str, device: str = "directml", threshold: float = 0.5) -> None:
         self.detector_name = detector_name
         self.device = device
@@ -47,8 +33,8 @@ class EPPDetector(ABC):
 
     @abstractmethod
     def detect(self, crop_rgb: np.ndarray) -> EPPDetectionResult:
+        
         """Clasifica cumplimiento EPP para un crop de persona en RGB."""
-
 
 class HelmetDetector(EPPDetector):
     """Detector de casco usando ViT multi-label.

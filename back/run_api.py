@@ -1,9 +1,3 @@
-"""Lanzador del backend API.
-
-Uso:
-    python -m back.run_api
-    python run_api.py
-"""
 
 from __future__ import annotations
 
