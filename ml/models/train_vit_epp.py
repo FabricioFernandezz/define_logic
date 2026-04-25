@@ -24,7 +24,6 @@ from config import (
     ViT_TRAINING_CONFIG,
     ViT_DATASET_ROOT,
     ViT_MODEL_PATH,
-    ViT_SIMPLE_MODEL_PATH,
 )
 
 class ViTEPPDataset(Dataset):
@@ -569,47 +568,6 @@ def main():
         class_names=EPP_CLASS_NAMES,
         num_labels=ViT_TRAINING_CONFIG.get('num_labels'),
     )
-
-    if ViT_TRAINING_CONFIG.get('phase2_init_from_simple', True):
-        phase1_path = Path(ViT_SIMPLE_MODEL_PATH)
-        if phase1_path.exists():
-            try:
-                try:
-                    checkpoint = torch.load(str(phase1_path), map_location='cpu', weights_only=True)
-                except TypeError:
-                    checkpoint = torch.load(str(phase1_path), map_location='cpu')
-
-                if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-                    state_dict = checkpoint['state_dict']
-                else:
-                    state_dict = checkpoint
-
-                if isinstance(state_dict, dict):
-                    state_dict = {
-                        (k[7:] if k.startswith('module.') else k): v
-                        for k, v in state_dict.items()
-                    }
-
-                model_state = model.state_dict()
-                compatible_state = {}
-                skipped_keys = []
-                for key, value in state_dict.items():
-                    if key in model_state and model_state[key].shape == value.shape:
-                        compatible_state[key] = value
-                    else:
-                        skipped_keys.append(key)
-
-                report = model.load_state_dict(compatible_state, strict=False)
-                print(f"[FAST] Pesos de fase 1 cargados desde: {phase1_path}")
-                if skipped_keys:
-                    print(f"[WARN] Pesos omitidos por incompatibilidad: {len(skipped_keys)}")
-                if report.missing_keys or report.unexpected_keys:
-                    print("[WARN] Carga parcial de checkpoint (esperado si cambian clases)")
-            except Exception as e:
-                print(f"[WARN] No se pudo cargar fase 1 ({phase1_path}): {e}")
-                print("[WARN] Continuando desde ViT pre-entrenado base")
-        else:
-            print(f"[FAST] No existe fase 1 en {phase1_path}, usando base pre-entrenada")
 
     processor = model.get_processor()
     print("[OK] Modelo ViT inicializado")

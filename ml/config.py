@@ -6,9 +6,8 @@ YOLO_CONF_THRESHOLD = 0.5       # Umbral confianza YOLO
 YOLO_IOU_THRESHOLD = 0.45       # IoU para NMS
 YOLO_INFERENCE_DEVICE = "cpu"  # Etapa inicial estable: 'cpu' | luego 'directml'
 
-ViT_MODEL_PATH = "models/models/vit_epp_best.pt"    # Modelo ViT entrenado completo
-ViT_SIMPLE_MODEL_PATH = "models/models/vit_epp_simple_best.pt"  # Fase 1 (backbone congelado)
-ViT_PRETRAINED = "google/vit-base-patch16-224"  # Modelo base
+ViT_MODEL_PATH = "models/models/vit_epp_best.pt"
+ViT_PRETRAINED = "google/vit-base-patch16-224"
 ViT_THRESHOLD = 0.7                          # Umbral clasificación (0-1), más estricto contra falsos positivos
 ViT_MODEL_NAME = "google/vit-base-patch16-224"
 ViT_INFERENCE_DEVICE = "cpu"                # Etapa inicial estable: 'cpu' | luego 'directml'
@@ -55,9 +54,6 @@ EPP_DATA_YAML = "data/epp_data.yaml"
 
 ViT_TRAINING_CONFIG = {
     'epochs': 20,
-    'simple_epochs': 5,
-    'simple_freeze_all_backbone': True,
-    'phase2_init_from_simple': True,
     'fine_tune_last_epochs': 2,
     'batch_size': 32,
     'learning_rate': 1e-4,

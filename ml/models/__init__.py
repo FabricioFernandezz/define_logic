@@ -1,6 +1,6 @@
 """Modelos y componentes de vision para DefineLogic."""
 
-from models.epp_detectors import EPPDetectionResult, EPPDetector, HelmetDetector
+from models.epp_detectors import EPPClassifierDetector, EPPDetectionResult, EPPDetector, HelmetDetector
 from models.industrial_safety_system import (
 	IndustrialSafetyVisionSystem,
 	is_centroid_inside_polygon,
@@ -11,6 +11,7 @@ from models.person_detector import PersonDetector
 from models.vit_epp_classifier import ViTEPPClassifier
 
 __all__ = [
+	"EPPClassifierDetector",
 	"EPPDetectionResult",
 	"EPPDetector",
 	"HelmetDetector",
