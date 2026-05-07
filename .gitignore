@@ -21,3 +21,6 @@ assets/samples/imagen_prueba.png
 ./front/package.json
 ./front/README.md
 *.env
+/ml/runs/*
+/runs/*
+/ml/training/test
