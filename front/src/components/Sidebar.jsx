@@ -5,6 +5,11 @@ const menuItems = [
   { id: "saved", label: "Imágenes guardadas", hint: "DB", sub: "Registros en base de datos" },
 ];
 
+const eppMenuItems = [
+  { id: "epp-image", label: "EPP en imagen", hint: "E·I", sub: "YOLO EPP · imagen" },
+  { id: "epp-live", label: "EPP en cámara", hint: "E·C", sub: "YOLO EPP · tiempo real" },
+];
+
 export default function Sidebar({ collapsed, onToggle, activeView, onNavigate, cameraBackground = false }) {
   return (
     <aside
@@ -53,7 +58,7 @@ export default function Sidebar({ collapsed, onToggle, activeView, onNavigate, c
         )}
       </div>
 
-      <div className="flex-1 px-2 py-4">
+      <div className="flex-1 overflow-y-auto px-2 py-4">
         <nav className="space-y-2">
           {menuItems.map((item) => {
             const isActive = activeView === item.id || (activeView === "review" && item.id === "history");
@@ -79,6 +84,51 @@ export default function Sidebar({ collapsed, onToggle, activeView, onNavigate, c
                   {item.id === "live" && cameraBackground && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-ok-400 ring-2 ring-steel-950" />
                   )}
+                </span>
+                {!collapsed && (
+                  <div className="min-w-0">
+                    <p className={`truncate text-sm font-medium ${isActive ? "text-accent-200" : "text-white"}`}>
+                      {item.label}
+                    </p>
+                    <p className="text-xs text-steel-400">{item.sub}</p>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* EPP divider */}
+        <div className="my-4 flex items-center gap-2 px-2">
+          <div className="h-px flex-1 bg-white/6" />
+          {!collapsed && (
+            <span className="text-[10px] uppercase tracking-[0.3em] text-steel-500">EPP v2</span>
+          )}
+          <div className="h-px flex-1 bg-white/6" />
+        </div>
+
+        <nav className="space-y-2">
+          {eppMenuItems.map((item) => {
+            const isActive = activeView === item.id || (activeView === "epp-review" && item.id === "epp-image");
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onNavigate(item.id)}
+                className={`group flex w-full items-center gap-3 rounded-2xl border px-2 py-3 text-left transition ${
+                  isActive
+                    ? "border-accent-400/30 bg-accent-500/10"
+                    : "border-transparent hover:border-white/8 hover:bg-white/5"
+                }`}
+              >
+                <span
+                  className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[10px] font-semibold ring-1 transition ${
+                    isActive
+                      ? "bg-accent-500/20 text-accent-200 ring-accent-400/30"
+                      : "bg-steel-900 text-ok-300 ring-white/6 group-hover:bg-ok-500/12 group-hover:text-white"
+                  }`}
+                >
+                  {item.hint}
                 </span>
                 {!collapsed && (
                   <div className="min-w-0">

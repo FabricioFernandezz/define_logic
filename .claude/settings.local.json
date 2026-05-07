@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Fabricio\\\\OneDrive\\\\Escritorio\\\\Tesis\\\\define_logic\" -Recurse -Depth 3)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Fabricio\\\\OneDrive\\\\Escritorio\\\\Tesis\\\\define_logic\" -Recurse -Depth 3 | Where-Object { $_.PSIsContainer } | Select-Object FullName | Sort-Object)"
+    ]
+  }
+}
