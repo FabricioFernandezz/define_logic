@@ -101,7 +101,7 @@ export default function EppImageDetector({ onEppDetection }) {
               Modelo YOLO directo para detectar EPP. Procesa en una sola pasada.
             </p>
           </div>
-          <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-r from-accent-500 to-ok-500 px-5 py-3 text-sm font-semibold text-steel-950 transition hover:brightness-110">
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20">
             Seleccionar archivo
             <input type="file" accept="image/*" className="hidden" onChange={handleChange} />
           </label>
@@ -163,7 +163,7 @@ export default function EppImageDetector({ onEppDetection }) {
               type="button"
               onClick={handleClear}
               disabled={!image}
-              className="inline-flex items-center justify-center rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/15 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Limpiar imagen
             </button>
@@ -186,7 +186,7 @@ export default function EppImageDetector({ onEppDetection }) {
               type="button"
               onClick={handleProcess}
               disabled={!image?.file || isProcessing}
-              className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-accent-500 to-ok-500 px-5 py-3 text-sm font-semibold text-steel-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isProcessing ? "Procesando..." : "Detectar EPP"}
             </button>

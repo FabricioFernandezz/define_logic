@@ -1,5 +1,39 @@
 import { useState } from "react";
 
+const EPP_TYPE_MAP = [
+  { key: "helmet", label: "Casco", keywords: ["helmet", "hardhat"] },
+  { key: "vest", label: "Chaleco", keywords: ["vest"] },
+  { key: "gloves", label: "Guantes", keywords: ["gloves"] },
+  { key: "boots", label: "Botas", keywords: ["boots"] },
+  { key: "glasses", label: "Lentes", keywords: ["glasses", "goggles"] },
+  { key: "mask", label: "Máscara", keywords: ["mask"] },
+];
+
+function groupByEppType(detections, personCount, modelClasses) {
+  // Narrow EPP_TYPE_MAP to types the model actually supports
+  const activeTypes = modelClasses.length > 0
+    ? EPP_TYPE_MAP.filter((type) =>
+        type.keywords.some((kw) =>
+          modelClasses.some((cls) => cls.toLowerCase().includes(kw))
+        )
+      )
+    : EPP_TYPE_MAP;
+
+  return activeTypes.map((type) => {
+    const matches = detections.filter((d) =>
+      type.keywords.some((kw) => d.label.toLowerCase().includes(kw))
+    );
+    // Show card if: detected at least once, OR model knows this type + persons present
+    if (matches.length === 0 && personCount === 0) return null;
+    const compliant = matches.filter((d) => d.helmetDetected).length;
+    const missing = personCount > 0
+      ? Math.max(0, personCount - compliant)
+      : matches.filter((d) => !d.helmetDetected).length;
+    const total = personCount > 0 ? personCount : matches.length;
+    return { ...type, total, compliant, missing };
+  }).filter(Boolean);
+}
+
 const RESULT_STYLES = {
   con: { badge: "border-ok-500/30 bg-ok-500/15 text-ok-200", dot: "bg-ok-400" },
   sin: { badge: "border-warn-500/30 bg-warn-500/15 text-warn-200", dot: "bg-warn-400" },
@@ -22,6 +56,7 @@ export default function DetectionReview({
   onSave,
   onDelete,
   onBack,
+  eppModelClasses = [],
 }) {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
@@ -34,8 +69,12 @@ export default function DetectionReview({
   const rKey = resultKey(entry.result);
   const style = RESULT_STYLES[rKey] ?? RESULT_STYLES.mixto;
   const isCameraFrame = entry.modelName === "live-cam";
+  const isEppEntry = entry.modelName === "yolo26_epp";
   const noHelmetPersons = entry.detections.filter((d) => !d.helmetDetected);
   const helmetPersons = entry.detections.filter((d) => d.helmetDetected);
+  const personCount = entry.personCount ?? 0;
+  const eppGroups = isEppEntry ? groupByEppType(entry.detections, personCount, eppModelClasses) : [];
+  const nonCompliantGroups = eppGroups.filter((g) => g.missing > 0);
 
   const openSaveModal = () => {
     const defaultName = entry.result === "sin casco" ? "Operario sin casco" : entry.name;
@@ -138,130 +177,225 @@ export default function DetectionReview({
             </div>
 
             {/* Quick stats row */}
-            <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-3 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-steel-400">Personas</p>
-                <p className="mt-1 text-xl font-semibold text-white">{entry.detections.length}</p>
+            {isEppEntry ? null : (
+              <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-steel-400">Personas</p>
+                  <p className="mt-1 text-xl font-semibold text-white">{entry.detections.length}</p>
+                </div>
+                <div className="rounded-2xl border border-ok-500/20 bg-ok-500/10 px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-ok-300">Con casco</p>
+                  <p className="mt-1 text-xl font-semibold text-ok-300">{helmetPersons.length}</p>
+                </div>
+                <div className="rounded-2xl border border-warn-500/20 bg-warn-500/10 px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-warn-300">Sin casco</p>
+                  <p className="mt-1 text-xl font-semibold text-warn-300">{noHelmetPersons.length}</p>
+                </div>
               </div>
-              <div className="rounded-2xl border border-ok-500/20 bg-ok-500/10 px-3 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-ok-300">Con casco</p>
-                <p className="mt-1 text-xl font-semibold text-ok-300">{helmetPersons.length}</p>
+            )}
+
+            {/* EPP horizontal breakdown — only for EPP v2 entries */}
+            {isEppEntry && (
+              <div className="mt-4 flex overflow-hidden rounded-2xl border border-white/8">
+                {/* Summary column */}
+                <div className="flex w-36 shrink-0 flex-col justify-center gap-1 border-r border-white/8 bg-steel-900/60 px-4 py-4">
+                  <p className="text-[9px] uppercase tracking-[0.25em] text-steel-500">Detecciones</p>
+                  <p className="text-3xl font-bold text-white">{personCount}</p>
+                  <p className="mt-2 text-[9px] uppercase leading-4 tracking-[0.2em] text-steel-500">
+                    Estado<br />detallado EPP
+                  </p>
+                </div>
+                {/* Scrollable EPP type cards */}
+                <div className="flex flex-1 overflow-x-auto">
+                  {eppGroups.length === 0 ? (
+                    <div className="flex items-center px-5 text-sm text-steel-400">Sin EPP detectado</div>
+                  ) : (
+                    eppGroups.map((group) => (
+                      <div
+                        key={group.key}
+                        className={`flex shrink-0 min-w-[128px] flex-col justify-between border-r border-white/8 px-4 py-4 last:border-r-0 ${
+                          group.missing > 0 ? "bg-warn-500/5" : "bg-ok-500/5"
+                        }`}
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-steel-300">
+                          {group.label}
+                        </p>
+                        <div className="mt-3 space-y-1.5">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10px] text-ok-400">Completos:</span>
+                            <span className="text-sm font-bold text-ok-300">{group.compliant}</span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[10px] text-warn-400">Faltantes:</span>
+                            <span className={`text-sm font-bold ${group.missing > 0 ? "text-warn-200" : "text-steel-500"}`}>
+                              {group.missing}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-steel-800">
+                          <div
+                            className="h-full rounded-full bg-ok-400"
+                            style={{ width: `${group.total > 0 ? (group.compliant / group.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="rounded-2xl border border-warn-500/20 bg-warn-500/10 px-3 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-warn-300">Sin casco</p>
-                <p className="mt-1 text-xl font-semibold text-warn-300">{noHelmetPersons.length}</p>
-              </div>
-            </div>
+            )}
           </section>
 
           {/* AI decision banner */}
-          <div
-            className={`rounded-[1.75rem] border px-5 py-4 ${
-              noHelmetPersons.length > 0
-                ? "border-warn-500/30 bg-warn-500/10"
-                : "border-ok-500/30 bg-ok-500/10"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{noHelmetPersons.length > 0 ? "⚠" : "✓"}</span>
-              <div>
-                <p
-                  className={`text-base font-semibold ${
-                    noHelmetPersons.length > 0 ? "text-warn-100" : "text-ok-100"
-                  }`}
-                >
-                  {noHelmetPersons.length > 0
-                    ? `${noHelmetPersons.length} persona${noHelmetPersons.length > 1 ? "s" : ""} sin casco detectada${noHelmetPersons.length > 1 ? "s" : ""}`
-                    : "Todas las personas llevan casco"}
-                </p>
-                <p className="text-xs text-steel-400 mt-0.5">
-                  Confianza media ViT: {(entry.confidence * 100).toFixed(1)}% ·{" "}
-                  {entry.processingTimeMs > 0 ? `${entry.processingTimeMs}ms` : "Tiempo real"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right — per-person cards + action panel */}
-        <div className="flex flex-col gap-4">
-          {/* Per-person detection cards */}
-          <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Por persona</p>
-            <h3 className="mt-1 text-lg font-semibold text-white">Resultados individuales</h3>
-
-            <div className="mt-4 space-y-3">
-              {entry.detections.length === 0 && (
-                <p className="text-sm text-steel-400">Sin personas detectadas en este frame.</p>
-              )}
-              {entry.detections.map((det, idx) => {
-                const isHelmet = Boolean(det.helmetDetected);
-                return (
-                  <div
-                    key={det.id ?? idx}
-                    className={`rounded-2xl border p-4 ${
-                      isHelmet
-                        ? "border-ok-500/20 bg-ok-500/8"
-                        : "border-warn-500/25 bg-warn-500/10"
+          {isEppEntry ? (
+            <div
+              className={`rounded-[1.75rem] border px-5 py-4 ${
+                entry.detections.length === 0
+                  ? "border-white/8 bg-white/5"
+                  : nonCompliantGroups.length > 0
+                    ? "border-warn-500/30 bg-warn-500/10"
+                    : "border-ok-500/30 bg-ok-500/10"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-2xl">
+                  {entry.detections.length === 0 ? "—" : nonCompliantGroups.length > 0 ? "⚠" : "✓"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={`text-base font-semibold ${
+                      entry.detections.length === 0
+                        ? "text-steel-300"
+                        : nonCompliantGroups.length > 0
+                          ? "text-warn-100"
+                          : "text-ok-100"
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                    {entry.detections.length === 0
+                      ? "Sin EPP detectado en este frame"
+                      : nonCompliantGroups.length > 0
+                        ? `EPP incompleto: ${nonCompliantGroups.map((g) => `${g.missing} ${g.label.toLowerCase()}`).join(", ")}`
+                        : "Todos los EPP presentes y completos"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-steel-400">
+                    {personCount} persona{personCount !== 1 ? "s" : ""} detectada{personCount !== 1 ? "s" : ""} ·{" "}
+                    Confianza media: {(entry.confidence * 100).toFixed(1)}% ·{" "}
+                    {entry.processingTimeMs > 0 ? `${entry.processingTimeMs}ms` : "Tiempo real"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className={`rounded-[1.75rem] border px-5 py-4 ${
+                noHelmetPersons.length > 0
+                  ? "border-warn-500/30 bg-warn-500/10"
+                  : entry.detections.length === 0
+                    ? "border-white/8 bg-white/5"
+                    : "border-ok-500/30 bg-ok-500/10"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">
+                  {noHelmetPersons.length > 0 ? "⚠" : entry.detections.length === 0 ? "—" : "✓"}
+                </span>
+                <div>
+                  <p
+                    className={`text-base font-semibold ${
+                      noHelmetPersons.length > 0
+                        ? "text-warn-100"
+                        : entry.detections.length === 0
+                          ? "text-steel-300"
+                          : "text-ok-100"
+                    }`}
+                  >
+                    {noHelmetPersons.length > 0
+                      ? `${noHelmetPersons.length} persona${noHelmetPersons.length > 1 ? "s" : ""} sin casco detectada${noHelmetPersons.length > 1 ? "s" : ""}`
+                      : entry.detections.length === 0
+                        ? "Sin personas detectadas en este frame"
+                        : "Todas las personas llevan casco"}
+                  </p>
+                  <p className="text-xs text-steel-400 mt-0.5">
+                    Confianza media ViT: {(entry.confidence * 100).toFixed(1)}% ·{" "}
+                    {entry.processingTimeMs > 0 ? `${entry.processingTimeMs}ms` : "Tiempo real"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right — per-person cards (non-EPP only) + action panel */}
+        <div className="flex flex-col gap-4">
+          {/* Per-person cards — only for original helmet model */}
+          {!isEppEntry && (
+            <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+              <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Por persona</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Resultados individuales</h3>
+              <div className="mt-4 space-y-3">
+                {entry.detections.length === 0 && (
+                  <p className="text-sm text-steel-400">Sin personas detectadas en este frame.</p>
+                )}
+                {entry.detections.map((det, idx) => {
+                  const isHelmet = Boolean(det.helmetDetected);
+                  return (
+                    <div
+                      key={det.id ?? idx}
+                      className={`rounded-2xl border p-4 ${
+                        isHelmet ? "border-ok-500/20 bg-ok-500/8" : "border-warn-500/25 bg-warn-500/10"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-xl text-xs font-bold ${
+                              isHelmet ? "bg-ok-500/20 text-ok-200" : "bg-warn-500/20 text-warn-200"
+                            }`}
+                          >
+                            {det.personIndex ?? idx + 1}
+                          </span>
+                          <span className="text-sm font-medium text-white">
+                            Persona {det.personIndex ?? idx + 1}
+                          </span>
+                        </div>
                         <span
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-xl text-xs font-bold ${
+                          className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${
                             isHelmet
-                              ? "bg-ok-500/20 text-ok-200"
-                              : "bg-warn-500/20 text-warn-200"
+                              ? "border-ok-500/30 bg-ok-500/10 text-ok-200"
+                              : "border-warn-500/30 bg-warn-500/10 text-warn-200"
                           }`}
                         >
-                          {det.personIndex ?? idx + 1}
-                        </span>
-                        <span className="text-sm font-medium text-white">
-                          Persona {det.personIndex ?? idx + 1}
+                          {det.label}
                         </span>
                       </div>
-                      <span
-                        className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${
-                          isHelmet
-                            ? "border-ok-500/30 bg-ok-500/10 text-ok-200"
-                            : "border-warn-500/30 bg-warn-500/10 text-warn-200"
-                        }`}
-                      >
-                        {det.label}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-steel-400">
-                      <div>
-                        <span className="text-steel-500">Confianza ViT</span>
-                        <p className="mt-0.5 font-semibold text-steel-200">
-                          {(det.confidence * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                      {det.bbox && (
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-steel-400">
                         <div>
-                          <span className="text-steel-500">Bbox (px)</span>
+                          <span className="text-steel-500">Confianza ViT</span>
                           <p className="mt-0.5 font-semibold text-steel-200">
-                            ({det.bbox.x}, {det.bbox.y}) → ({det.bbox.x + det.bbox.width}, {det.bbox.y + det.bbox.height})
+                            {(det.confidence * 100).toFixed(1)}%
                           </p>
                         </div>
-                      )}
+                        {det.bbox && (
+                          <div>
+                            <span className="text-steel-500">Bbox (px)</span>
+                            <p className="mt-0.5 font-semibold text-steel-200">
+                              ({det.bbox.x}, {det.bbox.y}) → ({det.bbox.x + det.bbox.width}, {det.bbox.y + det.bbox.height})
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-steel-800">
+                        <div
+                          className={`h-full rounded-full transition-all ${isHelmet ? "bg-ok-400" : "bg-warn-400"}`}
+                          style={{ width: `${(det.confidence * 100).toFixed(0)}%` }}
+                        />
+                      </div>
                     </div>
-
-                    {/* Confidence bar */}
-                    <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-steel-800">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          isHelmet ? "bg-ok-400" : "bg-warn-400"
-                        }`}
-                        style={{ width: `${(det.confidence * 100).toFixed(0)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Validacion / action panel */}
           <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">

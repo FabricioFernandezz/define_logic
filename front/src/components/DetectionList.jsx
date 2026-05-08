@@ -2,18 +2,19 @@ const resultStyles = {
   con: "border-ok-500/20 bg-ok-500/10 text-ok-200",
   sin: "border-warn-500/20 bg-warn-500/10 text-warn-200",
   mixto: "border-accent-500/20 bg-accent-500/10 text-accent-200",
+  cumple: "border-ok-500/20 bg-ok-500/10 text-ok-200",
+  "no cumple": "border-warn-500/20 bg-warn-500/10 text-warn-200",
 };
 
-export default function DetectionList({ items, onSelectItem, formatTimestamp }) {
+export default function DetectionList({ items, onSelectItem, formatTimestamp, fullWidth = false }) {
   return (
-    <section className="flex h-full flex-col rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+    <section className={`flex flex-col rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl ${fullWidth ? "min-h-[400px]" : "h-full"}`}>
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Actividad reciente</p>
         <h2 className="mt-1 text-2xl font-semibold text-white">Últimas detecciones</h2>
-        
       </div>
 
-      <div className="mt-5 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
+      <div className={`mt-5 space-y-3 overflow-y-auto pr-1 scrollbar-thin ${fullWidth ? "max-h-[70vh]" : "flex-1 min-h-0"}`}>
         {items.map((item) => (
           <button
             key={item.id}
@@ -41,7 +42,7 @@ export default function DetectionList({ items, onSelectItem, formatTimestamp }) 
                 {formatTimestamp(item.timestamp)}
               </p>
               <p className="mt-1 text-xs leading-5 text-steel-300">
-                {item.detections.length} personas detectadas · confianza media {item.confidence.toFixed(2)}
+                {item.detections.length} detecciones · confianza media {item.confidence.toFixed(2)}
               </p>
             </div>
           </button>
