@@ -233,7 +233,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">EPP · Cámara</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Cámara</p>
           <h2 className="mt-1 text-2xl font-semibold text-white">Detección EPP en tiempo real</h2>
           <p className="mt-2 text-sm leading-6 text-steel-300">
             El modelo detecta EPP directamente. Define zonas con requisitos distintos.
@@ -408,7 +408,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               </div>
               <h3 className="mt-5 text-xl font-semibold text-white">Cámara EPP inactiva</h3>
               <p className="mt-2 max-w-lg text-sm leading-6 text-steel-400">
-                Haz click en "Activar cámara EPP" para iniciar la detección en tiempo real.
+                Click en "Activar cámara EPP" para iniciar la detección en tiempo real.
               </p>
             </div>
           )}
