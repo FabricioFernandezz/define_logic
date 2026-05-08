@@ -90,17 +90,17 @@ const buildEppCameraEntry = (frameData) => {
 
 const VIEW_TITLES = {
   saved: "Imágenes guardadas",
-  "epp-image": "EPP · Detección en imagen",
-  "epp-live": "EPP · Detección en tiempo real",
-  "epp-history": "EPP · Actividad reciente",
-  "epp-review": "EPP · Detalle de detección",
+  "epp-image": "Detección en imagen",
+  "epp-live": "Detección en tiempo real",
+  "epp-history": "Actividad reciente",
+  "epp-review": "Detalles de detecciónes",
 };
 
 const VIEW_SUBTITLES = {
   saved: "Consulta registros persistidos en base de datos y abre imagen guardada en un click.",
-  "epp-image": "Modelo YOLO EPP directo sobre imagen estática. Una sola pasada de inferencia ONNX.",
-  "epp-live": "Modelo YOLO EPP detecta equipos de protección en tiempo real desde la cámara.",
-  "epp-history": "Revisa todas las detecciones EPP registradas. Haz click en una para ver el detalle.",
+  "epp-image": "Modelo que detecta directamente sobre una imagen .",
+  "epp-live": "Modelo que detecta en tiempo real desde la cámara existente.",
+  "epp-history": "Revisa todas las detecciones registradas.",
   "epp-review": "Detalle de detección EPP. Guarda en base de datos o elimina del historial.",
 };
 
@@ -344,14 +344,14 @@ export default function App() {
             {isEppImage && (
               <div className="animate-fadeUp flex flex-col gap-6">
                 <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic · EPP v2</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
                   <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                     {VIEW_TITLES["epp-image"]}
                   </h1>
                   <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES["epp-image"]}</p>
                   <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-ok-500/30 bg-ok-500/10 px-3 py-1.5 text-xs text-ok-300">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok-400" />
-                    yolo26_epp · best.onnx · inferencia directa
+                    Modelo activo
                   </div>
                 </header>
 
@@ -374,14 +374,14 @@ export default function App() {
             {/* EPP Live — always mounted so camera persists across navigation */}
             <div className={isEppLive ? "animate-fadeUp flex flex-col gap-6" : "hidden"}>
               <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
-                <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic · EPP v2</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                   {VIEW_TITLES["epp-live"]}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES["epp-live"]}</p>
                 <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-ok-500/30 bg-ok-500/10 px-3 py-1.5 text-xs text-ok-300">
                   <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-ok-400" />
-                  yolo26_epp · best.onnx · tiempo real
+                  Modelo activo
                 </div>
               </header>
 
@@ -406,7 +406,7 @@ export default function App() {
             {isEppHistory && (
               <div className="animate-fadeUp flex flex-col gap-6">
                 <header className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic · EPP v2</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">DefineLogic</p>
                   <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                     {VIEW_TITLES["epp-history"]}
                   </h1>

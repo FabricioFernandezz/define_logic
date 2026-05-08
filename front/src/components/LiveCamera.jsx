@@ -232,7 +232,7 @@ export default function LiveCamera({
             </div>
             <h3 className="mt-5 text-xl font-semibold text-white">Cámara inactiva</h3>
             <p className="mt-2 max-w-lg text-sm leading-6 text-steel-400">
-              Haz click en "Activar cámara" para iniciar la detección en tiempo real.
+              Click en "Activar cámara" para iniciar la detección en tiempo real.
             </p>
           </div>
         )}

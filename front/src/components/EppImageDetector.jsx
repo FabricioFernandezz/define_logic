@@ -95,7 +95,7 @@ export default function EppImageDetector({ onEppDetection }) {
       <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">EPP · Carga</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Carga</p>
             <h2 className="mt-1 text-2xl font-semibold text-white">Detección EPP en imagen</h2>
             <p className="mt-2 text-sm leading-6 text-steel-300">
               Modelo YOLO directo para detectar EPP. Procesa en una sola pasada.
@@ -143,7 +143,7 @@ export default function EppImageDetector({ onEppDetection }) {
 
           <div className="flex flex-col justify-between gap-4 rounded-[1.75rem] border border-white/8 bg-steel-900/70 p-4">
             <div>
-              <p className="text-sm font-medium text-white">Modelo EPP (YOLO ONNX)</p>
+              <p className="text-sm font-medium text-white">Modelo YOLO</p>
               <ul className="mt-3 space-y-3 text-sm text-steel-300">
                 <li className="flex gap-3">
                   <span className="mt-1 h-2.5 w-2.5 rounded-full bg-accent-400" />
@@ -155,7 +155,7 @@ export default function EppImageDetector({ onEppDetection }) {
                 </li>
                 <li className="flex gap-3">
                   <span className="mt-1 h-2.5 w-2.5 rounded-full bg-warn-400" />
-                  Una sola pasada de inferencia ONNX.
+                  Una sola pasada de inferencia.
                 </li>
               </ul>
             </div>
@@ -175,10 +175,10 @@ export default function EppImageDetector({ onEppDetection }) {
       <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">EPP · Resultado</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Resultado</p>
             <h2 className="mt-1 text-2xl font-semibold text-white">Visor de resultados EPP</h2>
             <p className="mt-2 text-sm leading-6 text-steel-300">
-              El backend detecta EPP con yolo26_epp y devuelve imagen anotada.
+              El backend detecta EPP y devuelve imagen anotada.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

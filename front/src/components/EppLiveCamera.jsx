@@ -236,7 +236,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">EPP · Cámara</p>
           <h2 className="mt-1 text-2xl font-semibold text-white">Detección EPP en tiempo real</h2>
           <p className="mt-2 text-sm leading-6 text-steel-300">
-            Modelo yolo26_epp detecta EPP directamente. Define zonas con requisitos distintos.
+            El modelo detecta EPP directamente. Define zonas con requisitos distintos.
           </p>
         </div>
 
