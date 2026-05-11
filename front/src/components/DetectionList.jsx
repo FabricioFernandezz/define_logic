@@ -41,6 +41,14 @@ export default function DetectionList({ items, onSelectItem, formatTimestamp, fu
               <p className="mt-2 text-xs leading-5 text-steel-400">
                 {formatTimestamp(item.timestamp)}
               </p>
+              {item.alertingZones?.length > 0 && (
+                <p className="mt-1 text-xs leading-5 text-warn-300">
+                  {item.alertingZones.map((zr) => zr.label || zr.zoneId).join(" · ")}
+                </p>
+              )}
+              {(!item.alertingZones?.length) && item.defaultZoneResult && !item.defaultZoneResult.compliant && (
+                <p className="mt-1 text-xs leading-5 text-warn-300">Zona por defecto</p>
+              )}
               <p className="mt-1 text-xs leading-5 text-steel-300">
                 {item.detections.length} detecciones · confianza media {item.confidence.toFixed(2)}
               </p>

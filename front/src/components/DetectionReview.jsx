@@ -9,8 +9,7 @@ const EPP_TYPE_MAP = [
   { key: "mask", label: "Máscara", keywords: ["mask"] },
 ];
 
-function groupByEppType(detections, personCount, modelClasses) {
-  // Narrow EPP_TYPE_MAP to types the model actually supports
+function groupByEppType(detections, personCount, modelClasses, requiredEppFilter = null) {
   const activeTypes = modelClasses.length > 0
     ? EPP_TYPE_MAP.filter((type) =>
         type.keywords.some((kw) =>
@@ -19,11 +18,21 @@ function groupByEppType(detections, personCount, modelClasses) {
       )
     : EPP_TYPE_MAP;
 
-  return activeTypes.map((type) => {
+  // When zone config is present, only show EPP types that zone requires
+  const visibleTypes = requiredEppFilter
+    ? activeTypes.filter((type) =>
+        requiredEppFilter.some((req) =>
+          type.keywords.some((kw) =>
+            kw.includes(req.toLowerCase()) || req.toLowerCase().includes(kw)
+          )
+        )
+      )
+    : activeTypes;
+
+  return visibleTypes.map((type) => {
     const matches = detections.filter((d) =>
       type.keywords.some((kw) => d.label.toLowerCase().includes(kw))
     );
-    // Show card if: detected at least once, OR model knows this type + persons present
     if (matches.length === 0 && personCount === 0) return null;
     const compliant = matches.filter((d) => d.helmetDetected).length;
     const missing = personCount > 0
@@ -73,7 +82,26 @@ export default function DetectionReview({
   const noHelmetPersons = entry.detections.filter((d) => !d.helmetDetected);
   const helmetPersons = entry.detections.filter((d) => d.helmetDetected);
   const personCount = entry.personCount ?? 0;
-  const eppGroups = isEppEntry ? groupByEppType(entry.detections, personCount, eppModelClasses) : [];
+
+  // Build required EPP filter from zone config — only show EPP types the zone actually requires
+  const requiredEppForAlert = (() => {
+    const zonesConfig = entry.zonesConfig || [];
+    const alertingZones = entry.alertingZones || [];
+    const defaultZoneEpp = entry.defaultZoneEpp || [];
+    const defaultZoneResult = entry.defaultZoneResult ?? null;
+
+    const required = new Set();
+    alertingZones.forEach((zr) => {
+      const cfg = zonesConfig.find((z) => z.id === zr.zoneId);
+      if (cfg?.requiredEpp) cfg.requiredEpp.forEach((e) => required.add(e));
+    });
+    if (defaultZoneResult && !defaultZoneResult.compliant) {
+      defaultZoneEpp.forEach((e) => required.add(e));
+    }
+    return required.size > 0 ? [...required] : null;
+  })();
+
+  const eppGroups = isEppEntry ? groupByEppType(entry.detections, personCount, eppModelClasses, requiredEppForAlert) : [];
   const nonCompliantGroups = eppGroups.filter((g) => g.missing > 0);
 
   const openSaveModal = () => {
@@ -164,6 +192,20 @@ export default function DetectionReview({
               <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Detalle</p>
               <h2 className="text-2xl font-semibold text-white truncate">{entry.name}</h2>
               <p className="text-sm text-steel-400">{formatTimestamp(entry.timestamp)}</p>
+              {entry.alertingZones?.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {entry.alertingZones.map((zr) => (
+                    <span key={zr.zoneId} className="rounded-full border border-warn-500/30 bg-warn-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-warn-200">
+                      {zr.label || zr.zoneId}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {(!entry.alertingZones?.length) && entry.defaultZoneResult && !entry.defaultZoneResult.compliant && (
+                <span className="mt-1 self-start rounded-full border border-warn-500/30 bg-warn-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-warn-200">
+                  Zona por defecto
+                </span>
+              )}
             </div>
 
             {/* Annotated image */}

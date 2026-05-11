@@ -158,6 +158,8 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           height: canvas.height,
           result: data,
           timestamp: new Date().toISOString(),
+          zonesConfig: zones,
+          defaultZoneEpp: defaultZoneEpp,
         });
       }
     } catch {
@@ -165,7 +167,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     } finally {
       isProcessingRef.current = false;
     }
-  }, [isPaused, zones, defaultZoneActive, defaultZoneRequirePerson, triggerCooldown, onEppCameraDetection]);
+  }, [isPaused, zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson, triggerCooldown, onEppCameraDetection]);
 
   const startCamera = useCallback(async () => {
     setError("");
@@ -296,13 +298,13 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
       {isPaused && (
         <div className="mt-4 rounded-2xl border border-accent-400/30 bg-accent-500/10 px-4 py-3 text-sm text-accent-200">
-          Detecciones en pausa · la cámara sigue activa · dibuja zonas y reanuda cuando estés listo
+          Detecciones en pausa, la cámara sigue activa - dibujar zonas y reanudar cuando se terminen los ajustes
         </div>
       )}
 
       {alertVisible && !isPaused && (
         <div className="mt-4 animate-pulse rounded-2xl border border-warn-500/50 bg-warn-500/20 px-4 py-4 text-center">
-          <p className="text-lg font-bold text-warn-100">⚠ EPP incompleto detectado</p>
+          <p className="text-lg font-bold text-warn-100">EPP incompleto detectado</p>
           <p className="mt-1 text-sm text-warn-300">Próxima detección en {cooldownRemaining}s</p>
         </div>
       )}

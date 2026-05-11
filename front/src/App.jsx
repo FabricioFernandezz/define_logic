@@ -58,6 +58,8 @@ const buildEppCameraEntry = (frameData) => {
   const dets = frameData.result.detections || [];
   const confidence =
     dets.length > 0 ? dets.reduce((s, d) => s + d.confidence, 0) / dets.length : 0;
+  const zoneResults = frameData.result.zoneResults || [];
+  const alertingZones = zoneResults.filter((zr) => zr.active !== false && !zr.compliant);
   return {
     id: createId(),
     name: `EPP ${new Date(frameData.timestamp).toLocaleTimeString("es-ES")}`,
@@ -85,6 +87,11 @@ const buildEppCameraEntry = (frameData) => {
     })),
     processingTimeMs: 0,
     modelName: "yolo26_epp",
+    zoneResults,
+    alertingZones,
+    defaultZoneResult: frameData.result.defaultZoneResult ?? null,
+    zonesConfig: frameData.zonesConfig || [],
+    defaultZoneEpp: frameData.defaultZoneEpp || [],
   };
 };
 
@@ -349,10 +356,7 @@ export default function App() {
                     {VIEW_TITLES["epp-image"]}
                   </h1>
                   <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES["epp-image"]}</p>
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-ok-500/30 bg-ok-500/10 px-3 py-1.5 text-xs text-ok-300">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok-400" />
-                    Modelo activo
-                  </div>
+                  
                 </header>
 
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
@@ -379,10 +383,7 @@ export default function App() {
                   {VIEW_TITLES["epp-live"]}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-steel-300">{VIEW_SUBTITLES["epp-live"]}</p>
-                <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-ok-500/30 bg-ok-500/10 px-3 py-1.5 text-xs text-ok-300">
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-ok-400" />
-                  Modelo activo
-                </div>
+                
               </header>
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
