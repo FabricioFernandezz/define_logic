@@ -72,6 +72,22 @@ export const getSavedDetectionsFromBackend = async () => {
   return response.json();
 };
 
+export const getZoneConfig = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/epp/zone-config`);
+  if (!response.ok) throw new Error("No se pudo obtener configuración de zonas");
+  return response.json();
+};
+
+export const saveZoneConfig = async ({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }) => {
+  const response = await fetch(`${API_BASE_URL}/api/epp/zone-config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }),
+  });
+  if (!response.ok) throw new Error("No se pudo guardar configuración de zonas");
+  return response.json();
+};
+
 export const saveDetectionToBackend = async ({ nombre, imagen, descripcion }) => {
   const response = await fetch(`${API_BASE_URL}/api/saved-detections`, {
     method: "POST",

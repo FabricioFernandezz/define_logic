@@ -43,3 +43,16 @@ def init_database() -> None:
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS epp_zone_config (
+                    id INTEGER PRIMARY KEY,
+                    zones TEXT NOT NULL DEFAULT '[]',
+                    default_zone_epp TEXT NOT NULL DEFAULT '[]',
+                    default_zone_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    default_zone_require_person BOOLEAN NOT NULL DEFAULT FALSE
+                )
+                """
+            )
+        )

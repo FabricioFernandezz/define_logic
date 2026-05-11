@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import EppZoneEditor from "./EppZoneEditor";
+import { getZoneConfig, saveZoneConfig } from "../services/apiDetectionService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const SAMPLE_INTERVAL_MS = 1000;
@@ -52,6 +53,18 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       })
       .catch(() => setEppClasses(FALLBACK_CLASSES));
   }, [isActive, isEditingZones, eppClasses.length]);
+
+  // Load persisted zone config on mount
+  useEffect(() => {
+    getZoneConfig()
+      .then((cfg) => {
+        if (cfg.zones?.length > 0) setZones(cfg.zones);
+        if (cfg.defaultZoneEpp?.length > 0) setDefaultZoneEpp(cfg.defaultZoneEpp);
+        setDefaultZoneActive(cfg.defaultZoneActive ?? true);
+        setDefaultZoneRequirePerson(cfg.defaultZoneRequirePerson ?? false);
+      })
+      .catch(() => {});
+  }, []);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
@@ -195,6 +208,12 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     setIsPaused(false);
     setIsEditingZones(false);
     isCooldownRef.current = false;
+    saveZoneConfig({
+      zones,
+      defaultZoneEpp,
+      defaultZoneActive,
+      defaultZoneRequirePerson,
+    }).catch(() => {});
   };
 
   useEffect(() => {

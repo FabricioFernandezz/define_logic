@@ -1,7 +1,7 @@
 const menuItems = [
   { id: "epp-image", label: "Carga de imagen", hint: "I", sub: "EPP en imagen" },
   { id: "epp-live", label: "Cámara en vivo", hint: "TR", sub: "EPP en tiempo real" },
-  { id: "epp-history", label: "Actividad registrada", hint: "A", sub: "Detecciones EPP registradas" },
+  { id: "epp-history", label: "Actividad reciente", hint: "A", sub: "Ultimas detecciones" },
   { id: "saved", label: "Imágenes guardadas", hint: "DB", sub: "Registros en base de datos" },
 ];
 
