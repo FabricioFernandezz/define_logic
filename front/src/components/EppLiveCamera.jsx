@@ -356,7 +356,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 {inactive && <span className="ml-1 opacity-60">· inactiva</span>}
                 {!inactive && zr.hasRequired && (
                   <span className="ml-1">
-                    {zr.compliant ? "✓" : `✗ ${nonCompliantParts.join(" · ")}`}
+                    {zr.compliant ? "" : `✗ ${nonCompliantParts.join(" · ")}`}
                   </span>
                 )}
               </span>
@@ -384,7 +384,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 {inactive && <span className="ml-1 opacity-60">· inactiva</span>}
                 {!inactive && (
                   <span className="ml-1">
-                    {defaultZoneResult.compliant ? "✓" : `✗ ${nonCompliantParts.join(" · ")}`}
+                    {defaultZoneResult.compliant ? "" : `✗ ${nonCompliantParts.join(" · ")}`}
                   </span>
                 )}
               </span>
@@ -417,7 +417,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           {isPaused && isActive && (
             <div className="absolute left-4 top-4">
               <span className="rounded-full border border-accent-400/40 bg-steel-950/90 px-3 py-1 text-xs font-semibold text-accent-200">
-                ⏸ En pausa
+                En pausa
               </span>
             </div>
           )}
