@@ -29,6 +29,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const [defaultZoneRequirePerson, setDefaultZoneRequirePerson] = useState(false);
   const [eppClasses, setEppClasses] = useState([]);
   const [error, setError] = useState("");
+  const [selectedZoneId, setSelectedZoneId] = useState(null);
 
   const FALLBACK_CLASSES = ["helmet", "vest", "glasses", "hardhat", "gloves", "mask", "boots"];
 
@@ -198,6 +199,27 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     }
   }, [captureAndSend]);
 
+  const updateZone = (id, updates) => {
+    setZones((prev) => prev.map((z) => (z.id === id ? { ...z, ...updates } : z)));
+  };
+
+  const toggleZoneEpp = (id, cls) => {
+    setZones((prev) =>
+      prev.map((z) => {
+        if (z.id !== id) return z;
+        const epp = z.requiredEpp.includes(cls)
+          ? z.requiredEpp.filter((e) => e !== cls)
+          : [...z.requiredEpp, cls];
+        return { ...z, requiredEpp: epp };
+      })
+    );
+  };
+
+  const closeZonePanel = () => {
+    setSelectedZoneId(null);
+    saveZoneConfig({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }).catch(() => {});
+  };
+
   const handlePause = () => {
     setIsPaused(true);
     setFrozenFrame(lastFrameUrlRef.current);
@@ -263,13 +285,22 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
         <div className="flex flex-col items-end gap-2">
           {!isActive ? (
-            <button
-              type="button"
-              onClick={startCamera}
-              className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
-            >
-              Activar cámara EPP
-            </button>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <button
+                type="button"
+                onClick={startCamera}
+                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+              >
+                Activar cámara EPP
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingZones((v) => !v)}
+                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+              >
+                {isEditingZones ? "Cerrar zonas" : "Configurar zonas"}
+              </button>
+            </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2 justify-end">
               {!isPaused ? (
@@ -340,9 +371,11 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               missing.length > 0 ? `falta: ${missing.join(", ")}` : null,
             ].filter(Boolean);
             return (
-              <span
+              <button
                 key={zr.zoneId}
-                className={`rounded-xl border px-3 py-1.5 text-xs font-medium ${
+                type="button"
+                onClick={() => setSelectedZoneId(zr.zoneId)}
+                className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:brightness-125 cursor-pointer ${
                   inactive
                     ? "border-white/8 bg-white/5 text-steel-500"
                     : !zr.hasRequired
@@ -356,10 +389,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 {inactive && <span className="ml-1 opacity-60">· inactiva</span>}
                 {!inactive && zr.hasRequired && (
                   <span className="ml-1">
-                    {zr.compliant ? "" : `✗ ${nonCompliantParts.join(" · ")}`}
+                    {zr.compliant ? "" : `${nonCompliantParts.join(" · ")}`}
                   </span>
                 )}
-              </span>
+              </button>
             );
           })}
           {defaultZoneResult && (() => {
@@ -371,8 +404,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
             ].filter(Boolean);
             const inactive = defaultZoneResult.active === false;
             return (
-              <span
-                className={`rounded-xl border px-3 py-1.5 text-xs font-medium ${
+              <button
+                type="button"
+                onClick={() => setSelectedZoneId("default")}
+                className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:brightness-125 cursor-pointer ${
                   inactive
                     ? "border-white/8 bg-white/5 text-steel-500"
                     : defaultZoneResult.compliant
@@ -384,10 +419,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 {inactive && <span className="ml-1 opacity-60">· inactiva</span>}
                 {!inactive && (
                   <span className="ml-1">
-                    {defaultZoneResult.compliant ? "" : `✗ ${nonCompliantParts.join(" · ")}`}
+                    {defaultZoneResult.compliant ? "" : `${nonCompliantParts.join(" · ")}`}
                   </span>
                 )}
-              </span>
+              </button>
             );
           })()}
         </div>
@@ -474,21 +509,38 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         )}
       </div>
 
-      {/* Zone editor — shown when paused */}
+      {/* Zone editor — shown when paused or camera off */}
       {isEditingZones && (
         <div className="mt-6 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-white">Editor de zonas</p>
-              <p className="text-xs text-steel-400">Dibuja rectángulos sobre el frame y asigna EPP requerido por zona</p>
+              <p className="text-xs text-steel-400">
+                {isActive
+                  ? "Dibuja rectángulos sobre el frame y asigna EPP requerido por zona"
+                  : "Edita zonas existentes · activa la cámara para dibujar nuevas"}
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={handleResume}
-              className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
-            >
-              Reanudar con estas zonas
-            </button>
+            {isActive ? (
+              <button
+                type="button"
+                onClick={handleResume}
+                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+              >
+                Reanudar con estas zonas
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingZones(false);
+                  saveZoneConfig({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }).catch(() => {});
+                }}
+                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+              >
+                Guardar y cerrar
+              </button>
+            )}
           </div>
 
           <EppZoneEditor
@@ -505,6 +557,140 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           />
         </div>
       )}
+
+      {/* Zone config panel — no pause needed */}
+      {selectedZoneId !== null && (() => {
+        const isDefault = selectedZoneId === "default";
+        const zone = isDefault ? null : zones.find((z) => z.id === selectedZoneId);
+        if (!isDefault && !zone) return null;
+
+        const ZONE_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+        const zoneIdx = zones.findIndex((z) => z.id === selectedZoneId);
+        const color = !isDefault && zoneIdx >= 0 ? ZONE_COLORS[zoneIdx % ZONE_COLORS.length] : "#94a3b8";
+
+        const currentEpp = isDefault ? defaultZoneEpp : zone.requiredEpp;
+        const currentActive = isDefault ? defaultZoneActive !== false : zone.active !== false;
+        const currentRequirePerson = isDefault ? defaultZoneRequirePerson : zone.requirePerson;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={closeZonePanel}
+          >
+            <div
+              className="w-full max-w-sm rounded-[2rem] border border-white/10 bg-steel-900 p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: color }} />
+                  {isDefault ? (
+                    <div>
+                      <p className="text-sm font-semibold text-white">Zona por defecto</p>
+                      <p className="text-[10px] text-steel-500">Resto de pantalla sin zona definida</p>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={zone.label}
+                      onChange={(e) => updateZone(zone.id, { label: e.target.value })}
+                      className="bg-transparent text-sm font-semibold text-white outline-none border-b border-white/10 focus:border-white/30 transition w-40"
+                      placeholder="Nombre de zona"
+                    />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={closeZonePanel}
+                  className="rounded-xl border border-white/8 bg-white/5 px-2.5 py-1 text-xs text-steel-400 hover:text-white transition shrink-0"
+                >
+                  ✕ Cerrar
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    isDefault
+                      ? setDefaultZoneActive(!currentActive)
+                      : updateZone(zone.id, { active: !currentActive })
+                  }
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                    currentActive
+                      ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
+                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                  }`}
+                >
+                  {currentActive ? "Activa" : "Inactiva"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    isDefault
+                      ? setDefaultZoneRequirePerson(!currentRequirePerson)
+                      : updateZone(zone.id, { requirePerson: !currentRequirePerson })
+                  }
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                    currentRequirePerson
+                      ? "border-accent-500/40 bg-accent-500/15 text-accent-200 hover:bg-accent-500/25"
+                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                  }`}
+                >
+                  {currentRequirePerson ? "Persona: Sí" : "Persona: No"}
+                </button>
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.25em] text-steel-500 mb-1">EPP requerido</p>
+                {eppClasses.length === 0 ? (
+                  <p className="mt-2 text-xs text-steel-500 italic">Cargando clases…</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {eppClasses.map((cls) => {
+                        const isSelected = currentEpp.includes(cls);
+                        return (
+                          <button
+                            key={cls}
+                            type="button"
+                            onClick={() => {
+                              if (isDefault) {
+                                setDefaultZoneEpp((prev) =>
+                                  prev.includes(cls) ? prev.filter((e) => e !== cls) : [...prev, cls]
+                                );
+                              } else {
+                                toggleZoneEpp(zone.id, cls);
+                              }
+                            }}
+                            className={`rounded-xl border px-2.5 py-1 text-xs font-medium transition ${
+                              isSelected
+                                ? "border-ok-500/50 bg-ok-500/20 text-ok-200"
+                                : "border-white/8 bg-white/5 text-steel-400 hover:border-white/20 hover:text-steel-200"
+                            }`}
+                          >
+                            {cls}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {currentEpp.length === 0 && (
+                      <p className="mt-1.5 text-[10px] text-steel-500">Sin EPP requerido → solo informativa</p>
+                    )}
+                    {currentEpp.length > 0 && (
+                      <p className="mt-1.5 text-[10px] text-ok-400">Requiere: {currentEpp.join(", ")}</p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <p className="mt-4 text-[10px] text-steel-600 text-center">
+                Detección sigue activa · cambios se guardan al cerrar
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {isActive && (
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-steel-400">
