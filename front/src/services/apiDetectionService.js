@@ -88,6 +88,27 @@ export const saveZoneConfig = async ({ zones, defaultZoneEpp, defaultZoneActive,
   return response.json();
 };
 
+export const generateAiDescription = async ({ imageDataUrl, detections, personCount, result, alertingZones, defaultZoneResult }) => {
+  const response = await fetch(`${API_BASE_URL}/api/epp/generate-description`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      image_data_url: imageDataUrl,
+      detections: detections || [],
+      person_count: personCount || 0,
+      result: result || "",
+      alerting_zones: alertingZones || null,
+      default_zone_result: defaultZoneResult || null,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => null);
+    throw new Error(err?.detail || "No se pudo generar descripción");
+  }
+  const data = await response.json();
+  return data.description;
+};
+
 export const saveDetectionToBackend = async ({ nombre, imagen, descripcion }) => {
   const response = await fetch(`${API_BASE_URL}/api/saved-detections`, {
     method: "POST",

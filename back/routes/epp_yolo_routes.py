@@ -4,8 +4,10 @@ from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
 from back.controllers.epp_yolo_controller import (
+    GenerateDescriptionRequest,
     detect_epp_frame_controller,
     detect_epp_image_controller,
+    generate_description_controller,
     get_epp_classes_controller,
 )
 from back.controllers.zone_config_controller import (
@@ -36,6 +38,11 @@ async def epp_detect_frame(
     default_zone_require_person: str = Form(default="false"),
 ):
     return await detect_epp_frame_controller(file, zones, default_zone_epp, default_zone_active, default_zone_require_person)
+
+
+@router.post("/api/epp/generate-description")
+async def epp_generate_description(payload: GenerateDescriptionRequest):
+    return await generate_description_controller(payload)
 
 
 @router.get("/api/epp/zone-config")

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { generateAiDescription } from "../services/apiDetectionService";
 
 const EPP_TYPE_MAP = [
   { key: "helmet", label: "Casco", keywords: ["helmet", "hardhat"] },
@@ -72,6 +73,7 @@ export default function DetectionReview({
   const [saveDescription, setSaveDescription] = useState("");
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   if (!entry) return null;
 
@@ -117,6 +119,26 @@ export default function DetectionReview({
     setIsSaveModalOpen(false);
     setSaveDescription("");
     setSaveError("");
+  };
+
+  const handleGenerateDescription = async () => {
+    setIsGenerating(true);
+    try {
+      const imageUrl = entry.annotatedPreviewUrl || entry.previewUrl;
+      const desc = await generateAiDescription({
+        imageDataUrl: imageUrl,
+        detections: entry.detections || [],
+        personCount: entry.personCount ?? 0,
+        result: entry.result || "",
+        alertingZones: entry.alertingZones || null,
+        defaultZoneResult: entry.defaultZoneResult || null,
+      });
+      setSaveDescription(desc);
+    } catch (err) {
+      setSaveError(err.message || "No se pudo generar descripción con IA");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleConfirmSave = async () => {
@@ -495,14 +517,31 @@ export default function DetectionReview({
             </div>
 
             <div className="mt-4">
-              <label htmlFor="save-description" className="text-xs uppercase tracking-[0.2em] text-steel-400">
-                Descripción (opcional)
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="save-description" className="text-xs uppercase tracking-[0.2em] text-steel-400">
+                  Descripción (opcional)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerateDescription}
+                  disabled={isSaving || isGenerating}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-accent-400/30 bg-accent-500/10 px-2.5 py-1 text-xs font-medium text-accent-200 transition hover:bg-accent-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isGenerating ? (
+                    <>
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border border-accent-400/40 border-t-accent-300" />
+                      Generando…
+                    </>
+                  ) : (
+                    "✦ Generar con IA"
+                  )}
+                </button>
+              </div>
               <textarea
                 id="save-description"
                 value={saveDescription}
                 onChange={(event) => setSaveDescription(event.target.value)}
-                disabled={isSaving}
+                disabled={isSaving || isGenerating}
                 className="mt-2 min-h-[96px] w-full resize-y rounded-xl border border-white/10 bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
                 placeholder="Ej: Operario ingresó sin casco al área de carga"
               />
