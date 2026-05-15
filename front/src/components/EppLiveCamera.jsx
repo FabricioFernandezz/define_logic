@@ -395,14 +395,16 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               </button>
             );
           })}
-          {defaultZoneResult && (() => {
-            const violations = defaultZoneResult.violatingEpp || [];
-            const missing = defaultZoneResult.missingEpp || [];
+          {/* Default zone badge — always shown when named zones exist so config is accessible */}
+          {(() => {
+            const violations = defaultZoneResult?.violatingEpp || [];
+            const missing = defaultZoneResult?.missingEpp || [];
             const nonCompliantParts = [
               violations.length > 0 ? `sin: ${violations.join(", ")}` : null,
               missing.length > 0 ? `falta: ${missing.join(", ")}` : null,
             ].filter(Boolean);
-            const inactive = defaultZoneResult.active === false;
+            const inactive = defaultZoneResult?.active === false;
+            const hasResult = defaultZoneResult !== null;
             return (
               <button
                 type="button"
@@ -410,16 +412,18 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:brightness-125 cursor-pointer ${
                   inactive
                     ? "border-white/8 bg-white/5 text-steel-500"
-                    : defaultZoneResult.compliant
-                      ? "border-ok-500/30 bg-ok-500/15 text-ok-200"
-                      : "border-warn-500/30 bg-warn-500/15 text-warn-200"
+                    : !hasResult || !defaultZoneResult.hasRequired
+                      ? "border-white/8 bg-white/5 text-steel-400"
+                      : defaultZoneResult.compliant
+                        ? "border-ok-500/30 bg-ok-500/15 text-ok-200"
+                        : "border-warn-500/30 bg-warn-500/15 text-warn-200"
                 }`}
               >
                 Por defecto
                 {inactive && <span className="ml-1 opacity-60">· inactiva</span>}
-                {!inactive && (
+                {!inactive && hasResult && defaultZoneResult.hasRequired && (
                   <span className="ml-1">
-                    {defaultZoneResult.compliant ? "" : `${nonCompliantParts.join(" · ")}`}
+                    {defaultZoneResult.compliant ? "" : nonCompliantParts.join(" · ")}
                   </span>
                 )}
               </button>

@@ -23,6 +23,8 @@ NON_COMPLIANT_KEYWORDS = {"no_", "sin_", "without_", "no-", "sin-", "without-"}
 
 PERSON_LABELS: frozenset = frozenset({"person", "worker", "human", "people", "persona", "trabajador"})
 
+SKIP_LABELS: frozenset = frozenset({"none", "null", "background", "otros", "other"})
+
 
 def _is_non_compliant(label: str) -> bool:
     lower = label.lower()
@@ -146,7 +148,7 @@ async def detect_epp_image(file: UploadFile) -> Dict[str, Any]:
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     detections = _run_inference(image_rgb)
     person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
-    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS]
+    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
     summary = _build_summary(display_detections)
     annotated = _annotate(image_rgb, display_detections)
     annotated_url = _encode(annotated)
@@ -168,8 +170,9 @@ def get_epp_model_classes() -> Dict[str, Any]:
     init_epp_model()
     all_classes = sorted(_epp_model.names.values())
     # Exclude person labels — zone compliance uses them internally, not as selectable EPP
-    compliant = [c for c in all_classes if not _is_non_compliant(c) and c.lower() not in PERSON_LABELS]
-    return {"all": all_classes, "compliant": compliant}
+    visible = [c for c in all_classes if c.lower() not in PERSON_LABELS and c.lower() not in SKIP_LABELS]
+    compliant = [c for c in visible if not _is_non_compliant(c)]
+    return {"all": visible, "compliant": compliant}
 
 
 def _det_center_in_zone(det: Dict[str, Any], bbox: Dict, img_w: int, img_h: int) -> bool:
@@ -196,10 +199,12 @@ def _zone_compliance_for_dets(
 ) -> tuple[List[str], List[str]]:
     """Returns (missing, violations).
     require_person=True  → only check EPP if a person is detected in the zone.
-    require_person=False → check EPP items directly regardless of person presence.
+    require_person=False → check EPP items directly, but only if there are any detections in the zone.
     missing    = required EPP not compliantly present.
     violations = required EPP where non-compliant version (no_X) was explicitly detected.
     """
+    if not zone_dets:
+        return [], []  # nothing in zone → skip entirely, no false alerts
     if require_person and not any(d["label"].lower() in PERSON_LABELS for d in zone_dets):
         return [], []  # person required but none in zone → skip
 
@@ -319,8 +324,8 @@ async def detect_epp_frame(
     detections = _run_inference(image_rgb)
     img_h, img_w = image_bgr.shape[:2]
 
-    # Persons are used internally for zone compliance but not shown in the display panel
-    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS]
+    # Persons and background labels are used internally or ignored — not shown in the display panel
+    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
 
     zones: List[Dict[str, Any]] = []
     if zones_raw:

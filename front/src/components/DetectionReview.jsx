@@ -321,7 +321,6 @@ export default function DetectionReview({
                   </p>
                   <p className="mt-0.5 text-xs text-steel-400">
                     {personCount} persona{personCount !== 1 ? "s" : ""} detectada{personCount !== 1 ? "s" : ""} ·{" "}
-                    Confianza media: {(entry.confidence * 100).toFixed(1)}% ·{" "}
                     {entry.processingTimeMs > 0 ? `${entry.processingTimeMs}ms` : "Tiempo real"}
                   </p>
                 </div>
@@ -358,7 +357,6 @@ export default function DetectionReview({
                         : "Todas las personas llevan casco"}
                   </p>
                   <p className="text-xs text-steel-400 mt-0.5">
-                    Confianza media ViT: {(entry.confidence * 100).toFixed(1)}% ·{" "}
                     {entry.processingTimeMs > 0 ? `${entry.processingTimeMs}ms` : "Tiempo real"}
                   </p>
                 </div>
@@ -454,7 +452,6 @@ export default function DetectionReview({
                 onClick={openSaveModal}
                 className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-ok-600 to-ok-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[0.98]"
               >
-                <span className="text-base">✓</span>
                 Guardar detección
               </button>
 
@@ -464,7 +461,6 @@ export default function DetectionReview({
                 onClick={() => onDelete(entry.id)}
                 className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-warn-500/30 bg-warn-500/10 px-5 py-3.5 text-sm font-semibold text-warn-200 transition hover:bg-warn-500/20 active:scale-[0.98]"
               >
-                <span className="text-base">✕</span>
                 Eliminar
               </button>
             </div>
