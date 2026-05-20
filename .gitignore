@@ -6,7 +6,7 @@
 *__pycache__/
 .vscode
 docs/
-data/datasets/cascos_dataset/datasets_download/
+data/datasets/*
 examples/
 scripts/
 notes.md

@@ -69,7 +69,7 @@ async def generate_detection_description(
         config=types.GenerateContentConfig(
             system_instruction=(
                 "Eres un sistema de registro de seguridad industrial. "
-                "Describe en máximo 30 palabras qué se detectó, qué EPP falta o está presente y en qué zona. "
+                "Describe en máximo 30 palabras qué se detectó, qué EPP falta o está presente y en qué zona existente. "
                 "Solo español. Sin saludos ni explicaciones extra."
             )
         ),
