@@ -14,6 +14,8 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const isProcessingRef = useRef(false);
   const isCooldownRef = useRef(false);
   const lastFrameUrlRef = useRef(null);
+  const lastSavedTsRef = useRef(0);
+  const SAVE_INTERVAL_MS = 8000;
 
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -79,6 +81,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     if (videoRef.current) videoRef.current.srcObject = null;
     isProcessingRef.current = false;
     isCooldownRef.current = false;
+    lastSavedTsRef.current = 0;
     setIsActive(false);
     setIsPaused(false);
     setIsEditingZones(false);
@@ -112,17 +115,21 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < 2) return;
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    const vidW = video.videoWidth || 640;
+    const vidH = video.videoHeight || 480;
+    // Scale up if webcam is small so YOLO gets enough resolution
+    const scale = vidW < 640 ? 640 / vidW : 1;
+    canvas.width = Math.round(vidW * scale);
+    canvas.height = Math.round(vidH * scale);
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Keep last frame for zone editor reference
-    lastFrameUrlRef.current = canvas.toDataURL("image/jpeg", 0.8);
+    lastFrameUrlRef.current = canvas.toDataURL("image/jpeg", 0.92);
 
     isProcessingRef.current = true;
     try {
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
       if (!blob) return;
 
       const formData = new FormData();
@@ -151,30 +158,49 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       formData.append("default_zone_active", defaultZoneActive ? "true" : "false");
       formData.append("default_zone_require_person", defaultZoneRequirePerson ? "true" : "false");
 
-      const resp = await fetch(`${API_BASE_URL}/api/epp/detect-frame`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!resp.ok) return;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
+      let resp;
+      try {
+        resp = await fetch(`${API_BASE_URL}/api/epp/detect-frame`, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => `HTTP ${resp.status}`);
+        setError(`Error del servidor (${resp.status}): ${errText.slice(0, 200)}`);
+        return;
+      }
 
       const data = await resp.json();
+      setError("");
       setLastResult(data);
 
       if (data.annotated_frame) {
         setAnnotatedFrame(data.annotated_frame);
       }
 
-      if (data.alert && !isCooldownRef.current) {
-        triggerCooldown();
-        onEppCameraDetection?.({
-          frameDataUrl: data.annotated_frame || lastFrameUrlRef.current,
-          width: canvas.width,
-          height: canvas.height,
-          result: data,
-          timestamp: new Date().toISOString(),
-          zonesConfig: zones,
-          defaultZoneEpp: defaultZoneEpp,
-        });
+      if (data.alert) {
+        const now = Date.now();
+        if (now - lastSavedTsRef.current >= SAVE_INTERVAL_MS) {
+          lastSavedTsRef.current = now;
+          onEppCameraDetection?.({
+            frameDataUrl: data.annotated_frame || lastFrameUrlRef.current,
+            width: canvas.width,
+            height: canvas.height,
+            result: data,
+            timestamp: new Date().toISOString(),
+            zonesConfig: zones,
+            defaultZoneEpp: defaultZoneEpp,
+          });
+        }
+        if (!isCooldownRef.current) {
+          triggerCooldown();
+        }
       }
     } catch {
       // silence transient network errors

@@ -14,8 +14,8 @@ from fastapi import HTTPException, UploadFile
 project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
-EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best.onnx"
-EPP_CONF_THRESHOLD = 0.35
+EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best7.onnx"
+EPP_CONF_THRESHOLD = 0.20
 
 _epp_model = None
 
@@ -41,12 +41,21 @@ def init_epp_model() -> None:
     if not EPP_MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Modelo EPP no encontrado: {EPP_MODEL_PATH}. "
-            "Verifica que el archivo best.onnx existe en ml/runs/yolo26_epp/"
+            "Verifica que el archivo best7.onnx existe en ml/runs/yolo26_epp/"
         )
 
     try:
+        # check_requirements(("onnx", "onnxruntime")) is called from ultralytics/nn/backends/onnx.py.
+        # onnx (the validator package) is broken in this venv; onnxruntime still handles inference.
+        # Patch the reference in the exact module that calls it before YOLO loads the backend.
+        import ultralytics.nn.backends.onnx as _onnx_be
+        import ultralytics.utils.checks as _ulc
+        _noop = lambda *a, **kw: None
+        _onnx_be.check_requirements = _noop
+        _ulc.check_requirements = _noop
+
         from ultralytics import YOLO
-        _epp_model = YOLO(str(EPP_MODEL_PATH))
+        _epp_model = YOLO(str(EPP_MODEL_PATH), task="detect")
     except Exception as exc:
         raise RuntimeError(f"Error cargando modelo EPP ONNX: {exc}") from exc
 
@@ -357,7 +366,10 @@ async def detect_epp_frame(
         default_alert = bool(default_zone_result and not default_zone_result["compliant"])
         alert = zone_alert or default_alert
     else:
-        alert = any(not d["isCompliant"] for d in display_detections) if display_detections else False
+        # Model only has positive EPP classes — can't infer non-compliance from detections alone.
+        # Alert when a person is present but no EPP is visible.
+        person_count_pre = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
+        alert = person_count_pre > 0 and len(display_detections) == 0
 
     person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
 

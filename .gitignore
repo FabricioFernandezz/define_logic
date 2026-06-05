@@ -24,3 +24,4 @@ assets/samples/imagen_prueba.png
 /ml/runs/*
 /runs/*
 /ml/training/test
+/.claude

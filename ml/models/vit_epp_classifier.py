@@ -1,11 +1,14 @@
 import torch
 import torch.nn as nn
 from transformers import ViTImageProcessor, ViTModel
+from transformers import logging as _hf_logging
 from typing import Dict, List, Tuple
 import os
 import sys
 import types
 from utils.device_manager import get_device
+
+_hf_logging.set_verbosity_error()
 
 
 DEFAULT_CLASS_NAMES = ["casco"]

@@ -80,7 +80,7 @@ export default function DetectionReview({
   const rKey = resultKey(entry.result);
   const style = RESULT_STYLES[rKey] ?? RESULT_STYLES.mixto;
   const isCameraFrame = entry.modelName === "live-cam";
-  const isEppEntry = entry.modelName === "yolo26_epp";
+  const isEppEntry = entry.modelName?.startsWith("yolo26_epp") ?? false;
   const noHelmetPersons = entry.detections.filter((d) => !d.helmetDetected);
   const helmetPersons = entry.detections.filter((d) => d.helmetDetected);
   const personCount = entry.personCount ?? 0;

@@ -9,7 +9,7 @@ from back.config.database import init_database
 from back.routes.detection_routes import router as detection_router
 from back.routes.epp_yolo_routes import router as epp_yolo_router
 from back.routes.saved_detection_routes import router as saved_detection_router
-from back.services.detection_service import init_detectors
+from back.services.epp_yolo_service import init_epp_model
 
 app = FastAPI(title="DefineLogic", version="1.0.0")
 
@@ -28,7 +28,7 @@ app.include_router(epp_yolo_router)
 
 @app.on_event("startup")
 def startup_event() -> None:
-    init_detectors()
+    init_epp_model()
     init_database()
 
 
