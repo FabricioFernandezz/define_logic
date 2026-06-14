@@ -34,7 +34,6 @@ function groupByEppType(detections, personCount, modelClasses, requiredEppFilter
     const matches = detections.filter((d) =>
       type.keywords.some((kw) => d.label.toLowerCase().includes(kw))
     );
-    if (matches.length === 0 && personCount === 0) return null;
     const compliant = matches.filter((d) => d.helmetDetected).length;
     const missing = personCount > 0
       ? Math.max(0, personCount - compliant)
@@ -85,21 +84,18 @@ export default function DetectionReview({
   const helmetPersons = entry.detections.filter((d) => d.helmetDetected);
   const personCount = entry.personCount ?? 0;
 
-  // Build required EPP filter from zone config — only show EPP types the zone actually requires
+  // Build required EPP filter from zone config — show only EPP types the zones require
   const requiredEppForAlert = (() => {
     const zonesConfig = entry.zonesConfig || [];
-    const alertingZones = entry.alertingZones || [];
     const defaultZoneEpp = entry.defaultZoneEpp || [];
-    const defaultZoneResult = entry.defaultZoneResult ?? null;
 
     const required = new Set();
-    alertingZones.forEach((zr) => {
-      const cfg = zonesConfig.find((z) => z.id === zr.zoneId);
-      if (cfg?.requiredEpp) cfg.requiredEpp.forEach((e) => required.add(e));
+    zonesConfig.forEach((z) => {
+      if (z.active !== false && z.requiredEpp?.length > 0) {
+        z.requiredEpp.forEach((e) => required.add(e));
+      }
     });
-    if (defaultZoneResult && !defaultZoneResult.compliant) {
-      defaultZoneEpp.forEach((e) => required.add(e));
-    }
+    defaultZoneEpp.forEach((e) => required.add(e));
     return required.size > 0 ? [...required] : null;
   })();
 

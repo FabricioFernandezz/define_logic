@@ -3,19 +3,29 @@ import EppZoneEditor from "./EppZoneEditor";
 import { getZoneConfig, saveZoneConfig } from "../services/apiDetectionService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const IP_CAMERA_URL = "http://192.168.18.28:8081/";
 const SAMPLE_INTERVAL_MS = 1000;
 const COOLDOWN_SECS = 10;
 
 export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const ipImgRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
   const isProcessingRef = useRef(false);
   const isCooldownRef = useRef(false);
+  const isActiveRef = useRef(false);
+  const isPausedRef = useRef(false);
   const lastFrameUrlRef = useRef(null);
   const lastSavedTsRef = useRef(0);
+  const lastAlertTsRef = useRef(0);
   const SAVE_INTERVAL_MS = 8000;
+  const ALERT_STICKY_MS = 5000; // maintain alert state for 5s after last detection
+
+  const [cameraSource, setCameraSourceState] = useState("webcam"); // "webcam" | "ip"
+  const cameraSourceRef = useRef("webcam");
+  const setCameraSource = (src) => { cameraSourceRef.current = src; setCameraSourceState(src); };
 
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -81,7 +91,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     if (videoRef.current) videoRef.current.srcObject = null;
     isProcessingRef.current = false;
     isCooldownRef.current = false;
+    isActiveRef.current = false;
+    isPausedRef.current = false;
     lastSavedTsRef.current = 0;
+    lastAlertTsRef.current = 0;
     setIsActive(false);
     setIsPaused(false);
     setIsEditingZones(false);
@@ -111,29 +124,34 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
   const captureAndSend = useCallback(async () => {
     if (isProcessingRef.current || isPaused) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2) return;
 
-    const vidW = video.videoWidth || 640;
-    const vidH = video.videoHeight || 480;
-    // Scale up if webcam is small so YOLO gets enough resolution
-    const scale = vidW < 640 ? 640 / vidW : 1;
-    canvas.width = Math.round(vidW * scale);
-    canvas.height = Math.round(vidH * scale);
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const isIpMode = cameraSourceRef.current === "ip";
+    let blob = null;
 
-    // Keep last frame for zone editor reference
-    lastFrameUrlRef.current = canvas.toDataURL("image/jpeg", 0.92);
+    if (!isIpMode) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < 2) return;
+      const vidW = video.videoWidth || 640;
+      const vidH = video.videoHeight || 480;
+      const scale = vidW < 640 ? 640 / vidW : 1;
+      canvas.width = Math.round(vidW * scale);
+      canvas.height = Math.round(vidH * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      lastFrameUrlRef.current = canvas.toDataURL("image/jpeg", 0.92);
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) return;
+    }
 
     isProcessingRef.current = true;
     try {
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
-      if (!blob) return;
-
       const formData = new FormData();
-      formData.append("file", blob, "frame.jpg");
+      if (isIpMode) {
+        formData.append("camera_url", IP_CAMERA_URL);
+      } else {
+        formData.append("file", blob, "frame.jpg");
+      }
 
       if (zones.length > 0) {
         formData.append(
@@ -162,11 +180,12 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       const timeoutId = setTimeout(() => controller.abort(), 7000);
       let resp;
       try {
-        resp = await fetch(`${API_BASE_URL}/api/epp/detect-frame`, {
-          method: "POST",
-          body: formData,
-          signal: controller.signal,
-        });
+        resp = await fetch(
+          isIpMode
+            ? `${API_BASE_URL}/api/epp/detect-ip-frame`
+            : `${API_BASE_URL}/api/epp/detect-frame`,
+          { method: "POST", body: formData, signal: controller.signal }
+        );
       } finally {
         clearTimeout(timeoutId);
       }
@@ -182,16 +201,20 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
       if (data.annotated_frame) {
         setAnnotatedFrame(data.annotated_frame);
+        if (isIpMode) lastFrameUrlRef.current = data.annotated_frame;
       }
 
-      if (data.alert) {
-        const now = Date.now();
+      const now = Date.now();
+      if (data.alert) lastAlertTsRef.current = now;
+      const stickyAlert = data.alert || (now - lastAlertTsRef.current < ALERT_STICKY_MS);
+
+      if (stickyAlert) {
         if (now - lastSavedTsRef.current >= SAVE_INTERVAL_MS) {
           lastSavedTsRef.current = now;
           onEppCameraDetection?.({
             frameDataUrl: data.annotated_frame || lastFrameUrlRef.current,
-            width: canvas.width,
-            height: canvas.height,
+            width: isIpMode ? (data.imageSize?.width || 640) : canvasRef.current?.width,
+            height: isIpMode ? (data.imageSize?.height || 480) : canvasRef.current?.height,
             result: data,
             timestamp: new Date().toISOString(),
             zonesConfig: zones,
@@ -211,6 +234,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
   const startCamera = useCallback(async () => {
     setError("");
+    if (cameraSourceRef.current === "ip") {
+      setIsActive(true);
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       streamRef.current = stream;
@@ -247,12 +274,14 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   };
 
   const handlePause = () => {
+    isPausedRef.current = true;
     setIsPaused(true);
     setFrozenFrame(lastFrameUrlRef.current);
     setIsEditingZones(true);
   };
 
   const handleResume = () => {
+    isPausedRef.current = false;
     setIsPaused(false);
     setIsEditingZones(false);
     isCooldownRef.current = false;
@@ -264,20 +293,47 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     }).catch(() => {});
   };
 
+  // IP camera: swap src imperatively so browser doesn't flash on each new frame
+  useEffect(() => {
+    if (cameraSource !== "ip" || !annotatedFrame || !ipImgRef.current) return;
+    const tmp = new Image();
+    tmp.onload = () => { if (ipImgRef.current) ipImgRef.current.src = annotatedFrame; };
+    tmp.src = annotatedFrame;
+  }, [annotatedFrame, cameraSource]);
+
   useEffect(() => {
     if (!active && isActive) stopCamera();
   }, [active, isActive, stopCamera]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  // Restart interval when isPaused changes so captureAndSend picks up new state
+  // Detection loop: interval for webcam, continuous async loop for IP camera
   useEffect(() => {
     if (!isActive) return;
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(captureAndSend, SAMPLE_INTERVAL_MS);
-    return () => {
+    isActiveRef.current = true;
+
+    if (cameraSourceRef.current !== "ip") {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(captureAndSend, SAMPLE_INTERVAL_MS);
+      return () => {
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      };
+    }
+
+    // IP camera: fire next frame immediately after current one completes
+    let cancelled = false;
+    const loop = async () => {
+      while (!cancelled) {
+        await captureAndSend();
+        if (cancelled) break;
+        // Small backoff while paused to avoid busy-wait
+        if (isPausedRef.current) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
     };
+    loop();
+    return () => { cancelled = true; };
   }, [isActive, captureAndSend]);
 
   const detections = lastResult?.detections || [];
@@ -311,48 +367,83 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
         <div className="flex flex-col items-end gap-2">
           {!isActive ? (
-            <div className="flex flex-wrap items-center gap-2 justify-end">
-              <button
-                type="button"
-                onClick={startCamera}
-                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
-              >
-                Activar cámara EPP
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsEditingZones((v) => !v)}
-                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
-              >
-                {isEditingZones ? "Cerrar zonas" : "Configurar zonas"}
-              </button>
+            <div className="flex flex-col items-end gap-2">
+              {/* Camera source selector */}
+              <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
+                <button
+                  type="button"
+                  onClick={() => setCameraSource("webcam")}
+                  className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                    cameraSource === "webcam"
+                      ? "bg-sky-500/30 text-white ring-1 ring-sky-400/40"
+                      : "text-steel-400 hover:text-white"
+                  }`}
+                >
+                  Cámara web
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCameraSource("ip")}
+                  className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                    cameraSource === "ip"
+                      ? "bg-sky-500/30 text-white ring-1 ring-sky-400/40"
+                      : "text-steel-400 hover:text-white"
+                  }`}
+                >
+                  Cámara IP
+                </button>
+              </div>
+              {cameraSource === "ip" && (
+                <span className="text-[10px] text-steel-500">{IP_CAMERA_URL}</span>
+              )}
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                >
+                  {cameraSource === "ip" ? "Conectar cámara IP" : "Activar cámara EPP"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingZones((v) => !v)}
+                  className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                >
+                  {isEditingZones ? "Cerrar zonas" : "Configurar zonas"}
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-2 justify-end">
-              {!isPaused ? (
+            <div className="flex flex-col items-end gap-2">
+              <span className="text-[10px] text-steel-500">
+                {cameraSource === "ip" ? `Cámara IP · ${IP_CAMERA_URL}` : "Cámara web"}
+              </span>
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                {!isPaused ? (
+                  <button
+                    type="button"
+                    onClick={handlePause}
+                    className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                  >
+                    Pausar · Editar zonas
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResume}
+                    className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                  >
+                    Reanudar detecciones
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handlePause}
+                  onClick={stopCamera}
                   className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
                 >
-                  Pausar · Editar zonas
+                  Detener cámara
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleResume}
-                  className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
-                >
-                  Reanudar detecciones
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
-              >
-                Detener cámara
-              </button>
+              </div>
             </div>
           )}
 
@@ -361,6 +452,11 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               {zones.length > 0 && `${zones.length} zona${zones.length > 1 ? "s" : ""}`}
               {zones.length > 0 && defaultZoneEpp.length > 0 && " · "}
               {defaultZoneEpp.length > 0 && "zona por defecto activa"}
+            </span>
+          )}
+          {zones.length === 0 && defaultZoneEpp.length === 0 && isActive && (
+            <span className="text-xs text-steel-500">
+              Sin zonas configuradas · alerta cuando falta casco o chaleco
             </span>
           )}
         </div>
@@ -464,11 +560,26 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         <div className="relative overflow-hidden rounded-[1.75rem] border border-white/8 bg-steel-950/80">
           <video
             ref={videoRef}
-            className={`block h-auto w-full ${isActive ? "" : "hidden"}`}
+            className={`block h-auto w-full ${isActive && cameraSource === "webcam" ? "" : "hidden"}`}
             style={{ maxHeight: "420px", objectFit: "cover" }}
             playsInline
             muted
           />
+          {isActive && cameraSource === "ip" && (
+            <>
+              <img
+                ref={ipImgRef}
+                alt="Cámara IP · detección en vivo"
+                className={`block h-auto w-full ${annotatedFrame ? "" : "hidden"}`}
+                style={{ maxHeight: "420px", objectFit: "cover" }}
+              />
+              {!annotatedFrame && (
+                <div className="flex min-h-[360px] items-center justify-center">
+                  <span className="animate-pulse text-sm text-steel-400">Conectando a cámara IP…</span>
+                </div>
+              )}
+            </>
+          )}
           <canvas ref={canvasRef} className="hidden" />
 
           {statusBadge && isActive && (
@@ -492,9 +603,13 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-accent-500/12 text-4xl text-accent-200">
                 ◎
               </div>
-              <h3 className="mt-5 text-xl font-semibold text-white">Cámara EPP inactiva</h3>
+              <h3 className="mt-5 text-xl font-semibold text-white">
+                {cameraSource === "ip" ? "Cámara IP inactiva" : "Cámara EPP inactiva"}
+              </h3>
               <p className="mt-2 max-w-lg text-sm leading-6 text-steel-400">
-                Click en "Activar cámara EPP" para iniciar la detección en tiempo real.
+                {cameraSource === "ip"
+                  ? `Click en "Conectar cámara IP" para iniciar stream desde ${IP_CAMERA_URL}`
+                  : `Click en "Activar cámara EPP" para iniciar la detección en tiempo real.`}
               </p>
             </div>
           )}
@@ -503,7 +618,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         {/* Side panel: last annotated frame + detections (only when not editing zones) */}
         {!isEditingZones && (
           <div className="flex flex-col gap-4">
-            {annotatedFrame && (
+            {annotatedFrame && cameraSource !== "ip" && (
               <div className="rounded-[1.75rem] border border-white/8 bg-steel-900/70 overflow-hidden">
                 <p className="px-4 pt-3 text-xs uppercase tracking-[0.25em] text-steel-400">Último frame</p>
                 <img src={annotatedFrame} alt="Frame anotado" className="mt-2 w-full object-contain" />

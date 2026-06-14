@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import sys
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +18,7 @@ sys.path.insert(0, str(project_root))
 
 EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best7.onnx"
 EPP_CONF_THRESHOLD = 0.20
+PERSON_CONF_THRESHOLD = 0.10  # Lower threshold for person class — EPP check needs person detected
 
 _epp_model = None
 
@@ -61,7 +64,9 @@ def init_epp_model() -> None:
 
 
 def _run_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
-    results = _epp_model(image_rgb, conf=EPP_CONF_THRESHOLD, verbose=False)
+    # Run with the lowest threshold so both person and EPP classes are captured in one pass
+    min_conf = min(EPP_CONF_THRESHOLD, PERSON_CONF_THRESHOLD)
+    results = _epp_model(image_rgb, conf=min_conf, verbose=False)
     detections: List[Dict[str, Any]] = []
 
     for result in results:
@@ -74,6 +79,9 @@ def _run_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
 
         for i, (box, conf, cls_id) in enumerate(zip(boxes, confs, cls_ids)):
             label = names.get(cls_id, str(cls_id))
+            threshold = PERSON_CONF_THRESHOLD if label.lower() in PERSON_LABELS else EPP_CONF_THRESHOLD
+            if conf < threshold:
+                continue
             x1, y1, x2, y2 = map(int, box)
             detections.append(
                 {
@@ -293,9 +301,13 @@ def _check_default_zone(
         }
     if not default_epp:
         return None
+    # Only exclude detections covered by zones that have active EPP requirements.
+    # Zones with no requirements are informational — detections inside them still fall
+    # through to the default zone check.
+    active_epp_zones = [z for z in zones if z.get("active", True) and z.get("required_epp", [])]
     outside_dets = [
         d for d in detections
-        if not any(_det_center_in_zone(d, z.get("bbox", {}), img_w, img_h) for z in zones)
+        if not any(_det_center_in_zone(d, z.get("bbox", {}), img_w, img_h) for z in active_epp_zones)
     ]
     required = [e.lower() for e in default_epp]
     missing, violations = _zone_compliance_for_dets(outside_dets, required, default_require_person)
@@ -366,8 +378,7 @@ async def detect_epp_frame(
         default_alert = bool(default_zone_result and not default_zone_result["compliant"])
         alert = zone_alert or default_alert
     else:
-        # Model only has positive EPP classes — can't infer non-compliance from detections alone.
-        # Alert when a person is present but no EPP is visible.
+        # No zone config — alert only when person present but zero EPP detected.
         person_count_pre = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
         alert = person_count_pre > 0 and len(display_detections) == 0
 
@@ -411,6 +422,114 @@ def _annotate_zones_on_frame(
         cv2.rectangle(image_bgr, (x1, y1), (x2, y2), color, 2)
         label = zone.get("label", "")
         missing = zr.get("missingEpp", [])
-        text = f"{label}" + (f" ✗ {','.join(missing)}" if missing else " ✓")
+        text = f"{label}" + (f" -{','.join(missing)}" if missing else " OK")
         cv2.putText(image_bgr, text, (x1 + 4, y1 + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
     return image_bgr
+
+
+async def _fetch_frame_bytes(url: str, timeout: float = 5.0) -> bytes:
+    loop = asyncio.get_event_loop()
+
+    def _sync_fetch() -> bytes:
+        credentials = base64.b64encode(b"admin:admin").decode("ascii")
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "EppDetector/1.0",
+            "Authorization": f"Basic {credentials}",
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            if "multipart" in content_type:
+                buffer = b""
+                while len(buffer) < 600_000:
+                    chunk = resp.read(4096)
+                    if not chunk:
+                        break
+                    buffer += chunk
+                    start = buffer.find(b"\xff\xd8")
+                    if start < 0:
+                        continue
+                    end = buffer.find(b"\xff\xd9", start + 2)
+                    if end >= 0:
+                        return buffer[start : end + 2]
+                return b""
+            return resp.read(600_000)
+
+    return await loop.run_in_executor(None, _sync_fetch)
+
+
+async def detect_epp_from_url(
+    camera_url: str,
+    zones_raw: Optional[str] = None,
+    default_zone_epp_raw: Optional[str] = None,
+    default_zone_active_raw: Optional[str] = "true",
+    default_zone_require_person_raw: Optional[str] = "false",
+) -> Dict[str, Any]:
+    init_epp_model()
+
+    try:
+        frame_bytes = await _fetch_frame_bytes(camera_url)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"No se pudo conectar a la cámara IP: {exc}") from exc
+
+    if not frame_bytes:
+        raise HTTPException(status_code=502, detail="No se recibió frame de la cámara IP")
+
+    np_buffer = np.frombuffer(frame_bytes, dtype=np.uint8)
+    image_bgr = cv2.imdecode(np_buffer, cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise HTTPException(status_code=502, detail="No se pudo decodificar el frame de la cámara IP")
+
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    detections = _run_inference(image_rgb)
+    img_h, img_w = image_bgr.shape[:2]
+
+    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
+
+    zones: List[Dict[str, Any]] = []
+    if zones_raw:
+        try:
+            zones = json.loads(zones_raw)
+        except (json.JSONDecodeError, TypeError):
+            zones = []
+
+    default_epp: List[str] = []
+    if default_zone_epp_raw:
+        try:
+            default_epp = json.loads(default_zone_epp_raw)
+        except (json.JSONDecodeError, TypeError):
+            default_epp = []
+
+    default_active: bool = (default_zone_active_raw or "true").strip().lower() != "false"
+    default_require_person: bool = (default_zone_require_person_raw or "false").strip().lower() == "true"
+
+    zone_results: List[Dict[str, Any]] = []
+    default_zone_result: Optional[Dict[str, Any]] = None
+
+    if zones or default_epp or not default_active:
+        zone_results = _check_zone_compliance(detections, zones, img_w, img_h)
+        default_zone_result = _check_default_zone(
+            detections, zones, default_epp, default_active, default_require_person, img_w, img_h
+        )
+        zone_alert = any(not z["compliant"] and z["hasRequired"] for z in zone_results)
+        default_alert = bool(default_zone_result and not default_zone_result["compliant"])
+        alert = zone_alert or default_alert
+    else:
+        person_count_pre = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
+        alert = person_count_pre > 0 and len(display_detections) == 0
+
+    person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
+
+    # Always return annotated frame for live view (even with no detections)
+    annotated = _annotate(image_rgb, display_detections)
+    if zone_results or default_zone_result:
+        annotated = _annotate_zones_on_frame(annotated, zones, zone_results, img_w, img_h)
+
+    return {
+        "detections": display_detections,
+        "personCount": person_count,
+        "alert": alert,
+        "zoneResults": zone_results,
+        "defaultZoneResult": default_zone_result,
+        "imageSize": {"width": img_w, "height": img_h},
+        "annotated_frame": _encode(annotated),
+    }

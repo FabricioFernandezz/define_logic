@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from back.services.epp_yolo_service import (
     detect_epp_frame,
+    detect_epp_from_url,
     detect_epp_image,
     get_epp_model_classes,
 )
@@ -42,6 +43,23 @@ async def detect_epp_frame_controller(
 ):
     result = await detect_epp_frame(
         file,
+        zones_raw=zones,
+        default_zone_epp_raw=default_zone_epp,
+        default_zone_active_raw=default_zone_active,
+        default_zone_require_person_raw=default_zone_require_person,
+    )
+    return JSONResponse(content=result)
+
+
+async def detect_epp_ip_frame_controller(
+    camera_url: str,
+    zones: Optional[str] = None,
+    default_zone_epp: Optional[str] = None,
+    default_zone_active: Optional[str] = "true",
+    default_zone_require_person: Optional[str] = "false",
+):
+    result = await detect_epp_from_url(
+        camera_url,
         zones_raw=zones,
         default_zone_epp_raw=default_zone_epp,
         default_zone_active_raw=default_zone_active,

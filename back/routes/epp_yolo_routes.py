@@ -7,6 +7,7 @@ from back.controllers.epp_yolo_controller import (
     GenerateDescriptionRequest,
     detect_epp_frame_controller,
     detect_epp_image_controller,
+    detect_epp_ip_frame_controller,
     generate_description_controller,
     get_epp_classes_controller,
 )
@@ -38,6 +39,17 @@ async def epp_detect_frame(
     default_zone_require_person: str = Form(default="false"),
 ):
     return await detect_epp_frame_controller(file, zones, default_zone_epp, default_zone_active, default_zone_require_person)
+
+
+@router.post("/api/epp/detect-ip-frame")
+async def epp_detect_ip_frame(
+    camera_url: str = Form(...),
+    zones: str = Form(default=None),
+    default_zone_epp: str = Form(default=None),
+    default_zone_active: str = Form(default="true"),
+    default_zone_require_person: str = Form(default="false"),
+):
+    return await detect_epp_ip_frame_controller(camera_url, zones, default_zone_epp, default_zone_active, default_zone_require_person)
 
 
 @router.post("/api/epp/generate-description")
