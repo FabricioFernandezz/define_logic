@@ -27,7 +27,7 @@ function EppSelector({ selected, eppClasses, onToggle, emptyHint }) {
               className={`rounded-xl border px-2.5 py-1 text-xs font-medium transition ${
                 active
                   ? "border-ok-500/50 bg-ok-500/20 text-ok-200"
-                  : "border-white/8 bg-white/5 text-steel-400 hover:border-white/20 hover:text-steel-200"
+                  : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-400 hover:border-white/20 hover:text-white"
               }`}
             >
               {cls}
@@ -254,7 +254,7 @@ export default function EppZoneEditor({
       {/* Zone cards */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {zones.length === 0 && (
-          <div className="col-span-full rounded-[1.75rem] border border-dashed border-white/10 bg-steel-950/50 py-5 text-center text-sm text-steel-500">
+          <div className="col-span-full rounded-[1.75rem] border border-dashed border-[#2E2E33] bg-steel-950/50 py-5 text-center text-sm text-steel-500">
             Sin zonas. Dibuja en la imagen para crear una.
           </div>
         )}
@@ -275,7 +275,7 @@ export default function EppZoneEditor({
                     type="text"
                     value={zone.label}
                     onChange={(e) => updateZone(zone.id, { label: e.target.value })}
-                    className="w-full min-w-0 bg-transparent text-sm font-medium text-white outline-none border-b border-white/10 focus:border-white/30 transition"
+                    className="w-full min-w-0 bg-transparent text-sm font-medium text-white outline-none border-b border-[#2E2E33] focus:border-white/30 transition"
                     placeholder="Nombre de zona"
                   />
                 </div>
@@ -286,7 +286,7 @@ export default function EppZoneEditor({
                     className={`rounded-xl border px-2 py-1 text-xs transition ${
                       isActive
                         ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
-                        : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                        : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500 hover:border-white/20 hover:text-white"
                     }`}
                   >
                     {isActive ? "Activa" : "Inactiva"}
@@ -294,7 +294,7 @@ export default function EppZoneEditor({
                   <button
                     type="button"
                     onClick={() => deleteZone(zone.id)}
-                    className="rounded-xl border border-white/8 bg-white/5 px-2 py-1 text-xs text-steel-400 transition hover:border-warn-500/30 hover:bg-warn-500/10 hover:text-warn-200"
+                    className="rounded-xl border border-[#2A2A2E] bg-[#1C1C1F] px-2 py-1 text-xs text-steel-400 transition hover:border-warn-500/30 hover:bg-warn-500/10 hover:text-warn-200"
                   >
                     ✕
                   </button>
@@ -306,8 +306,8 @@ export default function EppZoneEditor({
                   onClick={() => updateZone(zone.id, { requirePerson: !zone.requirePerson })}
                   className={`rounded-xl border px-2 py-1 text-xs transition ${
                     zone.requirePerson
-                      ? "border-accent-500/40 bg-accent-500/15 text-accent-200 hover:bg-accent-500/25"
-                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                      ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
+                      : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500 hover:border-white/20 hover:text-white"
                   }`}
                 >
                   {zone.requirePerson ? "Persona: Sí" : "Persona: No"}
@@ -335,7 +335,7 @@ export default function EppZoneEditor({
             <div className="flex items-center gap-2">
               <span className={`h-3 w-3 shrink-0 rounded-full ${defaultZoneActive !== false ? "bg-steel-300" : "bg-steel-600"}`} />
               <p className="text-sm font-medium text-white">Zona por defecto</p>
-              <span className="ml-1 rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-[10px] text-steel-400">
+              <span className="ml-1 rounded-full border border-[#2A2A2E] bg-[#1C1C1F] px-2 py-0.5 text-[10px] text-steel-400">
                 Resto de la pantalla sin zona definida
               </span>
             </div>
@@ -346,8 +346,8 @@ export default function EppZoneEditor({
                   onClick={() => onDefaultZoneRequirePersonChange(!defaultZoneRequirePerson)}
                   className={`rounded-xl border px-2 py-1 text-xs transition ${
                     defaultZoneRequirePerson
-                      ? "border-accent-500/40 bg-accent-500/15 text-accent-200 hover:bg-accent-500/25"
-                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                      ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
+                      : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500 hover:border-white/20 hover:text-white"
                   }`}
                 >
                   {defaultZoneRequirePerson ? "Persona: Sí" : "Persona: No"}
@@ -360,7 +360,7 @@ export default function EppZoneEditor({
                   className={`rounded-xl border px-2 py-1 text-xs transition ${
                     defaultZoneActive !== false
                       ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
-                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                      : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500 hover:border-white/20 hover:text-white"
                   }`}
                 >
                   {defaultZoneActive !== false ? "Activa" : "Inactiva"}

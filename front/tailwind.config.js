@@ -1,66 +1,81 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./index.html", "./src/**/*.{js,jsx}"] ,
+  content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
-      boxShadow: {
-        glow: "0 0 0 1px rgba(148, 163, 184, 0.12), 0 24px 80px rgba(2, 6, 23, 0.35)",
+      fontFamily: {
+        display: ["Syne", "sans-serif"],
+        sans: ["DM Sans", "sans-serif"],
       },
-      backgroundImage: {
-        "dashboard-grid":
-          "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0)",
+      boxShadow: {
+        glow:    "0 0 0 1px rgba(255,255,255,0.05), 0 4px 32px rgba(0,0,0,0.6)",
+        "glow-sm": "0 0 0 1px rgba(255,255,255,0.04), 0 2px 12px rgba(0,0,0,0.5)",
+        "glow-orange": "0 0 0 1px rgba(249,115,22,0.12), 0 4px 24px rgba(249,115,22,0.15)",
       },
       colors: {
+        // Superficies oscuras — tema industrial
         steel: {
-          50: "#f8fafc",
-          100: "#f1f5f9",
-          200: "#e2e8f0",
-          300: "#cbd5e1",
-          400: "#94a3b8",
-          500: "#64748b",
-          600: "#475569",
-          700: "#334155",
-          800: "#1e293b",
-          900: "#0f172a",
-          950: "#020617",
+          50:  "#111113",   // dark surface (replaces white cards)
+          100: "#0D0D0E",   // body/app bg
+          200: "#2A2A2E",   // borders
+          300: "#333338",   // hover overlay
+          400: "#C0C7D4",   // muted text (legible on dark bg)
+          500: "#9CA3AF",   // secondary text
+          600: "#6B7280",   // dim text
+          700: "#161618",   // card/surface bg
+          800: "#111113",   // deep surface
+          900: "#0A0A0C",   // darkest bg
+          950: "#080809",   // absolute dark
         },
+        // Naranja industrial — acento principal
         accent: {
-          50: "#ecfeff",
-          100: "#cffafe",
-          200: "#a5f3fc",
-          300: "#67e8f9",
-          400: "#22d3ee",
-          500: "#06b6d4",
-          600: "#0891b2",
-          700: "#0e7490",
+          50:  "#1A0F06",
+          100: "#2D1A0B",
+          200: "#7C2D12",
+          300: "#FDBA74",
+          400: "#FB923C",
+          500: "#F97316",
+          600: "#EA580C",
+          700: "#C2410C",
         },
-        warn: {
-          50: "#fff7ed",
-          100: "#ffedd5",
-          200: "#fed7aa",
-          300: "#fdba74",
-          400: "#fb923c",
-          500: "#f97316",
-          600: "#ea580c",
-        },
+        // Verde — cumple / seguro
         ok: {
-          50: "#ecfdf5",
-          100: "#d1fae5",
-          200: "#a7f3d0",
-          300: "#6ee7b7",
-          400: "#34d399",
-          500: "#10b981",
-          600: "#059669",
+          50:  "#F0FDF4",
+          100: "#DCFCE7",
+          200: "#BBF7D0",
+          300: "#86EFAC",
+          400: "#4ADE80",
+          500: "#22C55E",
+          600: "#16A34A",
+        },
+        // Rojo — no cumple / riesgo
+        warn: {
+          50:  "#FFF1F2",
+          100: "#FFE4E6",
+          200: "#FECDD3",
+          300: "#FDA4AF",
+          400: "#F87171",
+          500: "#EF4444",
+          600: "#DC2626",
         },
       },
       keyframes: {
         fadeUp: {
-          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "0%":   { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        slideInRight: {
+          "0%":   { opacity: "0", transform: "translateX(16px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        pulse: {
+          "0%, 100%": { opacity: "1" },
+          "50%":      { opacity: "0.4" },
         },
       },
       animation: {
-        fadeUp: "fadeUp 0.45s ease-out forwards",
+        fadeUp:       "fadeUp 0.4s ease-out forwards",
+        slideInRight: "slideInRight 0.28s ease-out forwards",
       },
     },
   },

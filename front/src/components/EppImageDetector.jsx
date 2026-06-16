@@ -14,8 +14,8 @@ const formatFileSize = (size) => {
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
-const COMPLIANT_STYLE = "border-ok-500/20 bg-ok-500/10 text-ok-200";
-const NON_COMPLIANT_STYLE = "border-warn-500/20 bg-warn-500/10 text-warn-200";
+const COMPLIANT_STYLE    = "border-ok-500/30 bg-ok-500/15 text-ok-300";
+const NON_COMPLIANT_STYLE = "border-warn-500/30 bg-warn-500/15 text-warn-300";
 
 export default function EppImageDetector({ onEppDetection }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -29,30 +29,15 @@ export default function EppImageDetector({ onEppDetection }) {
     const previewUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      setImage({
-        file,
-        name: file.name,
-        previewUrl,
-        naturalWidth: img.naturalWidth,
-        naturalHeight: img.naturalHeight,
-      });
+      setImage({ file, name: file.name, previewUrl, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight });
       setResult(null);
       setError("");
     };
     img.src = previewUrl;
   };
 
-  const handleChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) loadImage(file);
-    e.target.value = "";
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    loadImage(e.dataTransfer.files?.[0]);
-  };
+  const handleChange = (e) => { const file = e.target.files?.[0]; if (file) loadImage(file); e.target.value = ""; };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); loadImage(e.dataTransfer.files?.[0]); };
 
   const handleProcess = async () => {
     if (!image?.file || isProcessing) return;
@@ -61,14 +46,8 @@ export default function EppImageDetector({ onEppDetection }) {
     try {
       const formData = new FormData();
       formData.append("file", image.file);
-      const resp = await fetch(`${API_BASE_URL}/api/epp/detect-image`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(text || "Error procesando imagen EPP");
-      }
+      const resp = await fetch(`${API_BASE_URL}/api/epp/detect-image`, { method: "POST", body: formData });
+      if (!resp.ok) { const text = await resp.text(); throw new Error(text || "Error procesando imagen EPP"); }
       const data = await resp.json();
       setResult(data);
       onEppDetection?.({ image, result: data });
@@ -79,49 +58,45 @@ export default function EppImageDetector({ onEppDetection }) {
     }
   };
 
-  const handleClear = () => {
-    setImage(null);
-    setResult(null);
-    setError("");
-  };
+  const handleClear = () => { setImage(null); setResult(null); setError(""); };
 
   const displaySrc = result?.annotatedImage || image?.previewUrl;
   const detections = result?.detections || [];
   const summary = result?.summary;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Upload section */}
-      <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+    <div className="flex flex-col gap-5">
+      {/* Upload */}
+      <section className="rounded-2xl border border-steel-200 bg-steel-700 p-5 shadow-glow">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Carga</p>
-            <h2 className="mt-1 text-2xl font-semibold text-white">Detección EPP en imagen</h2>
-            <p className="mt-2 text-sm leading-6 text-steel-300">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-accent-500/80">Carga</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Detección EPP en imagen</h2>
+            <p className="mt-1 text-sm text-steel-400">
               Modelo YOLO directo para detectar EPP. Procesa en una sola pasada.
             </p>
           </div>
-          <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20">
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-accent-600/30 transition hover:bg-accent-600">
             Seleccionar archivo
             <input type="file" accept="image/*" className="hidden" onChange={handleChange} />
           </label>
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
             onDrop={handleDrop}
-            className={`rounded-[1.75rem] border border-dashed bg-steel-950/70 p-4 transition ${
-              isDragging ? "border-accent-400/60 bg-accent-500/5" : "border-white/10"
+            className={`rounded-xl border-2 border-dashed p-4 transition ${
+              isDragging ? "border-accent-500 bg-accent-500/10" : "border-steel-200 bg-steel-800"
             }`}
           >
             {image ? (
-              <div className="space-y-4">
-                <div className="overflow-hidden rounded-[1.5rem] border border-white/8 bg-steel-900/90">
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-xl border border-steel-200 bg-steel-900">
                   <img src={image.previewUrl} alt={image.name} className="h-64 w-full object-cover sm:h-72" />
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium text-white">{image.name}</p>
                     <p className="text-xs text-steel-400">{image.naturalWidth} × {image.naturalHeight} px</p>
@@ -130,31 +105,31 @@ export default function EppImageDetector({ onEppDetection }) {
                 </div>
               </div>
             ) : (
-              <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-white/5 to-transparent px-6 text-center">
-                <p className="mt-4 text-lg font-medium text-white">
+              <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-xl px-6 text-center">
+                <p className="mt-4 text-lg font-medium text-gray-300">
                   {isDragging ? "Soltar imagen aquí" : "Seleccionar imagen"}
                 </p>
-                <p className="mt-2 max-w-md text-sm leading-6 text-steel-400">
+                <p className="mt-2 max-w-md text-sm text-steel-400">
                   Arrastra o usa el botón para cargar
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex flex-col justify-between gap-4 rounded-[1.75rem] border border-white/8 bg-steel-900/70 p-4">
+          <div className="flex flex-col justify-between gap-4 rounded-xl border border-steel-200 bg-steel-800 p-4">
             <div>
-              <p className="text-sm font-medium text-white">Modelo YOLO</p>
-              <ul className="mt-3 space-y-3 text-sm text-steel-300">
+              <p className="text-sm font-medium text-white/90">Modelo YOLO</p>
+              <ul className="mt-3 space-y-3 text-sm text-steel-400">
                 <li className="flex gap-3">
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-accent-400" />
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent-500" />
                   Detección directa sin etapa de clasificación.
                 </li>
                 <li className="flex gap-3">
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-ok-400" />
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ok-500" />
                   Verde = EPP presente · Rojo = EPP ausente.
                 </li>
                 <li className="flex gap-3">
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-warn-400" />
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-warn-500" />
                   Una sola pasada de inferencia.
                 </li>
               </ul>
@@ -163,7 +138,7 @@ export default function EppImageDetector({ onEppDetection }) {
               type="button"
               onClick={handleClear}
               disabled={!image}
-              className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center justify-center rounded-xl border border-steel-200 bg-steel-700 px-5 py-2.5 text-sm font-semibold text-gray-300 shadow-sm transition hover:bg-steel-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Limpiar imagen
             </button>
@@ -171,61 +146,55 @@ export default function EppImageDetector({ onEppDetection }) {
         </div>
       </section>
 
-      {/* Viewer / results section */}
-      <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+      {/* Results */}
+      <section className="rounded-2xl border border-steel-200 bg-steel-700 p-5 shadow-glow">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Resultado</p>
-            <h2 className="mt-1 text-2xl font-semibold text-white">Visor de resultados EPP</h2>
-            <p className="mt-2 text-sm leading-6 text-steel-300">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-accent-500/80">Resultado</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Visor de resultados EPP</h2>
+            <p className="mt-1 text-sm text-steel-400">
               El backend detecta EPP y devuelve imagen anotada.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleProcess}
-              disabled={!image?.file || isProcessing}
-              className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {isProcessing ? "Procesando..." : "Detectar EPP"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleProcess}
+            disabled={!image?.file || isProcessing}
+            className="inline-flex items-center justify-center rounded-xl bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-accent-600/30 transition hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isProcessing ? "Procesando..." : "Detectar EPP"}
+          </button>
         </div>
 
         {error && (
-          <div className="mt-4 rounded-2xl border border-warn-500/30 bg-warn-500/10 px-4 py-3 text-sm text-warn-200">
+          <div className="mt-4 rounded-xl border border-warn-500/30 bg-warn-500/10 px-4 py-3 text-sm text-warn-300">
             {error}
           </div>
         )}
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="relative overflow-hidden rounded-[1.75rem] border border-white/8 bg-steel-950/80">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="relative overflow-hidden rounded-xl border border-steel-200 bg-steel-800">
             {displaySrc ? (
               <div className="relative">
-                <img
-                  src={displaySrc}
-                  alt={image?.name}
-                  className="block h-auto w-full object-contain"
-                />
+                <img src={displaySrc} alt={image?.name} className="block h-auto w-full object-contain" />
                 {detections.length > 0 && !result?.annotatedImage && (
                   <div className="absolute inset-0">
                     {detections.map((det) => {
                       const [x1, y1, x2, y2] = det.bbox_pixels;
-                      const left = (x1 / image.naturalWidth) * 100;
-                      const top = (y1 / image.naturalHeight) * 100;
-                      const width = ((x2 - x1) / image.naturalWidth) * 100;
+                      const left   = (x1 / image.naturalWidth) * 100;
+                      const top    = (y1 / image.naturalHeight) * 100;
+                      const width  = ((x2 - x1) / image.naturalWidth) * 100;
                       const height = ((y2 - y1) / image.naturalHeight) * 100;
                       return (
                         <div
                           key={det.id}
-                          className={`absolute rounded-3xl border-2 ${det.isCompliant ? "border-ok-400" : "border-warn-400"}`}
+                          className={`absolute rounded border-2 ${det.isCompliant ? "border-ok-400" : "border-warn-400"}`}
                           style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
                         >
-                          <div className={`absolute -top-4 left-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ${det.isCompliant ? COMPLIANT_STYLE : NON_COMPLIANT_STYLE}`}>
+                          <div className={`absolute -top-4 left-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${det.isCompliant ? COMPLIANT_STYLE : NON_COMPLIANT_STYLE}`}>
                             {det.label}
                           </div>
-                          <div className="absolute bottom-2 left-2 rounded-xl bg-steel-950/90 px-2.5 py-1 text-xs text-white shadow-lg">
+                          <div className="absolute bottom-1 left-1 rounded bg-steel-900/90 px-2 py-0.5 text-xs text-white shadow">
                             {det.confidence.toFixed(2)}
                           </div>
                         </div>
@@ -233,10 +202,10 @@ export default function EppImageDetector({ onEppDetection }) {
                     })}
                   </div>
                 )}
-                <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-white/8 bg-steel-950/80 px-3 py-1 text-xs text-steel-200">{image?.name}</span>
+                <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-steel-200 bg-steel-900/90 px-2.5 py-1 text-xs text-gray-300 shadow-sm">{image?.name}</span>
                   {result && (
-                    <span className="rounded-full border border-accent-400/30 bg-accent-500/20 px-3 py-1 text-xs text-accent-100">
+                    <span className="rounded-full border border-accent-500/30 bg-accent-500/10 px-2.5 py-1 text-xs text-accent-400">
                       yolo26_epp · {result.processingTimeMs}ms
                     </span>
                   )}
@@ -244,24 +213,24 @@ export default function EppImageDetector({ onEppDetection }) {
               </div>
             ) : (
               <div className="flex min-h-[520px] flex-col items-center justify-center px-6 text-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-accent-500/12 text-4xl text-accent-200">
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent-500/10 text-4xl text-accent-500">
                   ⦿
                 </div>
-                <h3 className="mt-5 text-xl font-semibold text-white">Visor EPP</h3>
-                <p className="mt-4 text-xs uppercase tracking-[0.3em] text-steel-500">SOLO IMÁGENES</p>
+                <h3 className="mt-5 text-xl font-semibold text-white/80">Visor EPP</h3>
+                <p className="mt-3 text-xs uppercase tracking-[0.3em] text-steel-400">SOLO IMÁGENES</p>
               </div>
             )}
           </div>
 
-          <div className="flex flex-col gap-4 rounded-[1.75rem] border border-white/8 bg-steel-900/70 p-4">
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Resumen</p>
-              <div className="mt-3 space-y-3 text-sm">
-                <div className="flex items-center justify-between rounded-2xl bg-ok-500/10 px-4 py-3 text-ok-200">
+          <div className="flex flex-col gap-3 rounded-xl border border-steel-200 bg-steel-800 p-4">
+            <div className="rounded-xl border border-steel-200 bg-steel-700 p-4">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-steel-400">Resumen</p>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex items-center justify-between rounded-lg bg-ok-500/10 px-3 py-2 text-ok-300">
                   <span>EPP presente</span>
                   <span className="font-semibold">{summary?.compliantCount ?? 0}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-2xl bg-warn-500/10 px-4 py-3 text-warn-200">
+                <div className="flex items-center justify-between rounded-lg bg-warn-500/10 px-3 py-2 text-warn-300">
                   <span>EPP ausente</span>
                   <span className="font-semibold">{summary?.nonCompliantCount ?? 0}</span>
                 </div>
@@ -269,9 +238,9 @@ export default function EppImageDetector({ onEppDetection }) {
             </div>
 
             {detections.length > 0 && (
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Detecciones</p>
-                <div className="mt-2 space-y-2">
+              <div className="rounded-xl border border-steel-200 bg-steel-700 p-4">
+                <p className="text-[10px] uppercase tracking-[0.25em] text-steel-400">Detecciones</p>
+                <div className="mt-2 space-y-1.5">
                   {detections.map((det) => (
                     <div key={det.id} className="flex items-center justify-between text-xs">
                       <span className={`rounded-full border px-2 py-0.5 ${det.isCompliant ? COMPLIANT_STYLE : NON_COMPLIANT_STYLE}`}>
@@ -284,9 +253,9 @@ export default function EppImageDetector({ onEppDetection }) {
               </div>
             )}
 
-            <div className="rounded-2xl border border-white/8 bg-gradient-to-br from-accent-500/10 to-ok-500/10 p-4 text-sm text-steel-200">
-              <p className="text-xs uppercase tracking-[0.25em] text-accent-200">Estado</p>
-              <p className="mt-2 leading-6">
+            <div className="rounded-xl border border-steel-200 bg-steel-700 p-4 text-sm">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-accent-500">Estado</p>
+              <p className="mt-2 leading-6 text-gray-300">
                 {isProcessing
                   ? "Inferencia ONNX en progreso."
                   : result

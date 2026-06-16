@@ -165,7 +165,7 @@ export default function DetectionReview({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 px-4 py-2 text-sm font-medium text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-2xl border border-[#2A2A2E] bg-[#1C1C1F] px-4 py-2 text-sm font-medium text-[#C0C7D4] transition hover:border-accent-400/30 hover:bg-[#222226] hover:text-white"
           >
             ← Volver
           </button>
@@ -181,7 +181,7 @@ export default function DetectionReview({
               type="button"
               onClick={onPrev}
               disabled={currentIndex === 0}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#2A2A2E] bg-[#1C1C1F] text-[#C0C7D4] transition hover:border-accent-400/30 hover:bg-[#222226] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Detección anterior"
             >
               ‹
@@ -193,7 +193,7 @@ export default function DetectionReview({
               type="button"
               onClick={onNext}
               disabled={currentIndex === totalCount - 1}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/5 text-steel-300 transition hover:border-accent-400/30 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#2A2A2E] bg-[#1C1C1F] text-[#C0C7D4] transition hover:border-accent-400/30 hover:bg-[#222226] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Siguiente detección"
             >
               ›
@@ -205,7 +205,7 @@ export default function DetectionReview({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_380px]">
         {/* Left — image + summary */}
         <div className="flex flex-col gap-4">
-          <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+          <section className="rounded-[2rem] border border-[#2A2A2E] bg-[#161618] p-5 shadow-glow">
             <div className="flex flex-col gap-1">
               <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Detalle</p>
               <h2 className="text-2xl font-semibold text-white truncate">{entry.name}</h2>
@@ -227,7 +227,7 @@ export default function DetectionReview({
             </div>
 
             {/* Annotated image */}
-            <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-white/8 bg-steel-950">
+            <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-[#2A2A2E] bg-steel-950">
               <img
                 src={entry.annotatedPreviewUrl || entry.previewUrl}
                 alt="Frame detectado"
@@ -239,7 +239,7 @@ export default function DetectionReview({
             {/* Quick stats row */}
             {isEppEntry ? null : (
               <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-2xl border border-white/8 bg-steel-900/70 px-3 py-3">
+                <div className="rounded-2xl border border-[#2A2A2E] bg-steel-900/70 px-3 py-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-steel-400">Personas</p>
                   <p className="mt-1 text-xl font-semibold text-white">{entry.detections.length}</p>
                 </div>
@@ -256,9 +256,9 @@ export default function DetectionReview({
 
             {/* EPP horizontal breakdown — only for EPP v2 entries */}
             {isEppEntry && (
-              <div className="mt-4 flex overflow-hidden rounded-2xl border border-white/8">
+              <div className="mt-4 flex overflow-hidden rounded-2xl border border-[#2A2A2E]">
                 {/* Summary column */}
-                <div className="flex w-36 shrink-0 flex-col justify-center gap-1 border-r border-white/8 bg-steel-900/60 px-4 py-4">
+                <div className="flex w-36 shrink-0 flex-col justify-center gap-1 border-r border-[#2A2A2E] bg-steel-900/60 px-4 py-4">
                   <p className="text-[9px] uppercase tracking-[0.25em] text-steel-500">Detecciones</p>
                   <p className="text-3xl font-bold text-white">{personCount}</p>
                   <p className="mt-2 text-[9px] uppercase leading-4 tracking-[0.2em] text-steel-500">
@@ -273,11 +273,11 @@ export default function DetectionReview({
                     eppGroups.map((group) => (
                       <div
                         key={group.key}
-                        className={`flex shrink-0 min-w-[128px] flex-col justify-between border-r border-white/8 px-4 py-4 last:border-r-0 ${
+                        className={`flex shrink-0 min-w-[128px] flex-col justify-between border-r border-[#2A2A2E] px-4 py-4 last:border-r-0 ${
                           group.missing > 0 ? "bg-warn-500/5" : "bg-ok-500/5"
                         }`}
                       >
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-steel-300">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#C0C7D4]">
                           {group.label}
                         </p>
                         <div className="mt-3 space-y-1.5">
@@ -311,7 +311,7 @@ export default function DetectionReview({
             <div
               className={`rounded-[1.75rem] border px-5 py-4 ${
                 entry.detections.length === 0
-                  ? "border-white/8 bg-white/5"
+                  ? "border-[#2A2A2E] bg-[#1C1C1F]"
                   : nonCompliantGroups.length > 0
                     ? "border-warn-500/30 bg-warn-500/10"
                     : "border-ok-500/30 bg-ok-500/10"
@@ -325,7 +325,7 @@ export default function DetectionReview({
                   <p
                     className={`text-base font-semibold ${
                       entry.detections.length === 0
-                        ? "text-steel-300"
+                        ? "text-[#C0C7D4]"
                         : nonCompliantGroups.length > 0
                           ? "text-warn-100"
                           : "text-ok-100"
@@ -350,7 +350,7 @@ export default function DetectionReview({
                 noHelmetPersons.length > 0
                   ? "border-warn-500/30 bg-warn-500/10"
                   : entry.detections.length === 0
-                    ? "border-white/8 bg-white/5"
+                    ? "border-[#2A2A2E] bg-[#1C1C1F]"
                     : "border-ok-500/30 bg-ok-500/10"
               }`}
             >
@@ -364,7 +364,7 @@ export default function DetectionReview({
                       noHelmetPersons.length > 0
                         ? "text-warn-100"
                         : entry.detections.length === 0
-                          ? "text-steel-300"
+                          ? "text-[#C0C7D4]"
                           : "text-ok-100"
                     }`}
                   >
@@ -387,7 +387,7 @@ export default function DetectionReview({
         <div className="flex flex-col gap-4">
           {/* Per-person cards — only for original helmet model */}
           {!isEppEntry && (
-            <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+            <section className="rounded-[2rem] border border-[#2A2A2E] bg-[#161618] p-5 shadow-glow">
               <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Por persona</p>
               <h3 className="mt-1 text-lg font-semibold text-white">Resultados individuales</h3>
               <div className="mt-4 space-y-3">
@@ -429,14 +429,14 @@ export default function DetectionReview({
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-steel-400">
                         <div>
                           <span className="text-steel-500">Confianza ViT</span>
-                          <p className="mt-0.5 font-semibold text-steel-200">
+                          <p className="mt-0.5 font-semibold text-[#D1D5DB]">
                             {(det.confidence * 100).toFixed(1)}%
                           </p>
                         </div>
                         {det.bbox && (
                           <div>
                             <span className="text-steel-500">Bbox (px)</span>
-                            <p className="mt-0.5 font-semibold text-steel-200">
+                            <p className="mt-0.5 font-semibold text-[#D1D5DB]">
                               ({det.bbox.x}, {det.bbox.y}) → ({det.bbox.x + det.bbox.width}, {det.bbox.y + det.bbox.height})
                             </p>
                           </div>
@@ -456,7 +456,7 @@ export default function DetectionReview({
           )}
 
           {/* Validacion / action panel */}
-          <section className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+          <section className="rounded-[2rem] border border-[#2A2A2E] bg-[#161618] p-5 shadow-glow">
             <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Validación</p>
             <h3 className="mt-1 text-lg font-semibold text-white">Confirmar decisión</h3>
             <p className="mt-2 text-sm leading-6 text-steel-400">
@@ -491,8 +491,8 @@ export default function DetectionReview({
       </div>
 
       {isSaveModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-950/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-steel-900/95 p-5 shadow-glow">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-950/70 px-4">
+          <div className="w-full max-w-md rounded-[1.5rem] border border-[#2E2E33] bg-steel-900/95 p-5 shadow-glow">
             <p className="text-xs uppercase tracking-[0.28em] text-accent-300/80">Guardar detección</p>
             <h4 className="mt-2 text-lg font-semibold text-white">Nombre de registro</h4>
             <p className="mt-1 text-sm text-steel-400">Escribe etiqueta para imagen guardada.</p>
@@ -507,7 +507,7 @@ export default function DetectionReview({
                 value={saveName}
                 onChange={(event) => setSaveName(event.target.value)}
                 disabled={isSaving}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
+                className="mt-2 w-full rounded-xl border border-[#2E2E33] bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
                 placeholder="Ej: Operario sin casco"
               />
             </div>
@@ -538,7 +538,7 @@ export default function DetectionReview({
                 value={saveDescription}
                 onChange={(event) => setSaveDescription(event.target.value)}
                 disabled={isSaving || isGenerating}
-                className="mt-2 min-h-[96px] w-full resize-y rounded-xl border border-white/10 bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
+                className="mt-2 min-h-[96px] w-full resize-y rounded-xl border border-[#2E2E33] bg-steel-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-accent-400/70"
                 placeholder="Ej: Operario ingresó sin casco al área de carga"
               />
               {saveError && <p className="mt-2 text-xs text-warn-300">{saveError}</p>}
@@ -549,7 +549,7 @@ export default function DetectionReview({
                 type="button"
                 onClick={closeSaveModal}
                 disabled={isSaving}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-steel-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-[#2E2E33] bg-[#1C1C1F] px-4 py-2 text-sm font-semibold text-[#D1D5DB] transition hover:bg-[#222226] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancelar
               </button>

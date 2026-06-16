@@ -349,18 +349,18 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     } else if (hasDetections) {
       statusBadge = { text: "EPP correcto", cls: "border-ok-500/40 bg-ok-500/20 text-ok-100" };
     } else {
-      statusBadge = { text: "Sin detecciones", cls: "border-white/8 bg-steel-950/80 text-steel-300" };
+      statusBadge = { text: "Sin detecciones", cls: "border-[#2A2A2E] bg-steel-950/80 text-[#C0C7D4]" };
     }
   }
 
   return (
-    <section id="epp-camera-section" className="rounded-[2rem] border border-white/8 bg-white/5 p-5 shadow-glow backdrop-blur-xl">
+    <section id="epp-camera-section" className="rounded-[2rem] border border-[#2A2A2E] bg-[#161618] p-5 shadow-glow">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-accent-300/75">Cámara</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-[#FB923C]/75">Cámara</p>
           <h2 className="mt-1 text-2xl font-semibold text-white">Detección EPP en tiempo real</h2>
-          <p className="mt-2 text-sm leading-6 text-steel-300">
+          <p className="mt-2 text-sm leading-6 text-[#C0C7D4]">
             El modelo detecta EPP directamente. Define zonas con requisitos distintos.
           </p>
         </div>
@@ -369,13 +369,13 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           {!isActive ? (
             <div className="flex flex-col items-end gap-2">
               {/* Camera source selector */}
-              <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
+              <div className="flex items-center gap-1 rounded-2xl border border-[#2E2E33] bg-[#1C1C1F] p-1">
                 <button
                   type="button"
                   onClick={() => setCameraSource("webcam")}
                   className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
                     cameraSource === "webcam"
-                      ? "bg-sky-500/30 text-white ring-1 ring-sky-400/40"
+                      ? "bg-[#F97316]/30 text-white ring-1 ring-[#F97316]/40"
                       : "text-steel-400 hover:text-white"
                   }`}
                 >
@@ -386,7 +386,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                   onClick={() => setCameraSource("ip")}
                   className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
                     cameraSource === "ip"
-                      ? "bg-sky-500/30 text-white ring-1 ring-sky-400/40"
+                      ? "bg-[#F97316]/30 text-white ring-1 ring-[#F97316]/40"
                       : "text-steel-400 hover:text-white"
                   }`}
                 >
@@ -396,18 +396,18 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               {cameraSource === "ip" && (
                 <span className="text-[10px] text-steel-500">{IP_CAMERA_URL}</span>
               )}
-              <div className="flex flex-wrap items-center gap-2 justify-end">
+              <div className="flex flex-row gap-2">
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
                 >
                   {cameraSource === "ip" ? "Conectar cámara IP" : "Activar cámara EPP"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditingZones((v) => !v)}
-                  className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
                 >
                   {isEditingZones ? "Cerrar zonas" : "Configurar zonas"}
                 </button>
@@ -418,12 +418,12 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               <span className="text-[10px] text-steel-500">
                 {cameraSource === "ip" ? `Cámara IP · ${IP_CAMERA_URL}` : "Cámara web"}
               </span>
-              <div className="flex flex-wrap items-center gap-2 justify-end">
+              <div className="flex flex-row gap-2">
                 {!isPaused ? (
                   <button
                     type="button"
                     onClick={handlePause}
-                    className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                    className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
                   >
                     Pausar · Editar zonas
                   </button>
@@ -431,7 +431,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                   <button
                     type="button"
                     onClick={handleResume}
-                    className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                    className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
                   >
                     Reanudar detecciones
                   </button>
@@ -439,7 +439,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 <button
                   type="button"
                   onClick={stopCamera}
-                  className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
                 >
                   Detener cámara
                 </button>
@@ -469,7 +469,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       )}
 
       {isPaused && (
-        <div className="mt-4 rounded-2xl border border-accent-400/30 bg-accent-500/10 px-4 py-3 text-sm text-accent-200">
+        <div className="mt-4 rounded-2xl border border-accent-400/30 bg-accent-500/10 px-4 py-3 text-sm text-[#FDBA74]">
           Detecciones en pausa, la cámara sigue activa - dibujar zonas y reanudar cuando se terminen los ajustes
         </div>
       )}
@@ -499,9 +499,9 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 onClick={() => setSelectedZoneId(zr.zoneId)}
                 className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:brightness-125 cursor-pointer ${
                   inactive
-                    ? "border-white/8 bg-white/5 text-steel-500"
+                    ? "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500"
                     : !zr.hasRequired
-                      ? "border-white/8 bg-white/5 text-steel-400"
+                      ? "border-[#2A2A2E] bg-[#1C1C1F] text-steel-400"
                       : zr.compliant
                         ? "border-ok-500/30 bg-ok-500/15 text-ok-200"
                         : "border-warn-500/30 bg-warn-500/15 text-warn-200"
@@ -533,9 +533,9 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 onClick={() => setSelectedZoneId("default")}
                 className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:brightness-125 cursor-pointer ${
                   inactive
-                    ? "border-white/8 bg-white/5 text-steel-500"
+                    ? "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500"
                     : !hasResult || !defaultZoneResult.hasRequired
-                      ? "border-white/8 bg-white/5 text-steel-400"
+                      ? "border-[#2A2A2E] bg-[#1C1C1F] text-steel-400"
                       : defaultZoneResult.compliant
                         ? "border-ok-500/30 bg-ok-500/15 text-ok-200"
                         : "border-warn-500/30 bg-warn-500/15 text-warn-200"
@@ -557,7 +557,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       {/* Camera + side panel */}
       <div className={`mt-5 grid gap-4 ${isEditingZones ? "" : "xl:grid-cols-[minmax(0,1fr)_240px]"}`}>
         {/* Video */}
-        <div className="relative overflow-hidden rounded-[1.75rem] border border-white/8 bg-steel-950/80">
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-[#2A2A2E] bg-steel-950/80">
           <video
             ref={videoRef}
             className={`block h-auto w-full ${isActive && cameraSource === "webcam" ? "" : "hidden"}`}
@@ -592,7 +592,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
           {isPaused && isActive && (
             <div className="absolute left-4 top-4">
-              <span className="rounded-full border border-accent-400/40 bg-steel-950/90 px-3 py-1 text-xs font-semibold text-accent-200">
+              <span className="rounded-full border border-accent-400/40 bg-steel-950/90 px-3 py-1 text-xs font-semibold text-[#FDBA74]">
                 En pausa
               </span>
             </div>
@@ -600,7 +600,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
           {!isActive && (
             <div className="flex min-h-[360px] flex-col items-center justify-center px-6 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-accent-500/12 text-4xl text-accent-200">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-[#F97316]/12 text-4xl text-[#FDBA74]">
                 ◎
               </div>
               <h3 className="mt-5 text-xl font-semibold text-white">
@@ -619,14 +619,14 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         {!isEditingZones && (
           <div className="flex flex-col gap-4">
             {annotatedFrame && cameraSource !== "ip" && (
-              <div className="rounded-[1.75rem] border border-white/8 bg-steel-900/70 overflow-hidden">
+              <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-steel-900/70 overflow-hidden">
                 <p className="px-4 pt-3 text-xs uppercase tracking-[0.25em] text-steel-400">Último frame</p>
                 <img src={annotatedFrame} alt="Frame anotado" className="mt-2 w-full object-contain" />
               </div>
             )}
 
             {detections.length > 0 && (
-              <div className="rounded-[1.75rem] border border-white/8 bg-steel-900/70 p-4">
+              <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-steel-900/70 p-4">
                 <p className="text-xs uppercase tracking-[0.25em] text-steel-400">Detecciones</p>
                 <div className="mt-2 space-y-2">
                   {detections.map((det) => (
@@ -646,7 +646,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
             )}
 
             {!annotatedFrame && !detections.length && isActive && !isPaused && (
-              <div className="rounded-[1.75rem] border border-white/8 bg-steel-900/70 p-4 text-sm text-steel-400">
+              <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-steel-900/70 p-4 text-sm text-steel-400">
                 Esperando detecciones EPP…
               </div>
             )}
@@ -670,7 +670,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               <button
                 type="button"
                 onClick={handleResume}
-                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
               >
                 Reanudar con estas zonas
               </button>
@@ -681,7 +681,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                   setIsEditingZones(false);
                   saveZoneConfig({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }).catch(() => {});
                 }}
-                className="inline-flex items-center justify-center rounded-2xl bg-sky-100/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-100/30 ring-1 ring-white/20"
+                className="inline-flex items-center justify-center rounded-2xl bg-[#F97316]/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#F97316]/30 ring-1 ring-[#F97316]/40"
               >
                 Guardar y cerrar
               </button>
@@ -719,11 +719,11 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
         return (
           <div
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60"
             onClick={closeZonePanel}
           >
             <div
-              className="w-full max-w-sm rounded-[2rem] border border-white/10 bg-steel-900 p-5 shadow-2xl"
+              className="w-full max-w-sm rounded-[2rem] border border-[#2E2E33] bg-steel-900 p-5 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-3 mb-4">
@@ -739,7 +739,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                       type="text"
                       value={zone.label}
                       onChange={(e) => updateZone(zone.id, { label: e.target.value })}
-                      className="bg-transparent text-sm font-semibold text-white outline-none border-b border-white/10 focus:border-white/30 transition w-40"
+                      className="bg-transparent text-sm font-semibold text-white outline-none border-b border-[#2E2E33] focus:border-[#F97316]/50 transition w-40"
                       placeholder="Nombre de zona"
                     />
                   )}
@@ -747,7 +747,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 <button
                   type="button"
                   onClick={closeZonePanel}
-                  className="rounded-xl border border-white/8 bg-white/5 px-2.5 py-1 text-xs text-steel-400 hover:text-white transition shrink-0"
+                  className="rounded-xl border border-[#2A2A2E] bg-[#1C1C1F] px-2.5 py-1 text-xs text-steel-400 hover:text-white transition shrink-0"
                 >
                   ✕ Cerrar
                 </button>
@@ -764,7 +764,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                   className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
                     currentActive
                       ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
-                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                      : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500 hover:border-[#444448] hover:text-white"
                   }`}
                 >
                   {currentActive ? "Activa" : "Inactiva"}
@@ -778,8 +778,8 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                   }
                   className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
                     currentRequirePerson
-                      ? "border-accent-500/40 bg-accent-500/15 text-accent-200 hover:bg-accent-500/25"
-                      : "border-white/8 bg-white/5 text-steel-500 hover:border-white/20 hover:text-steel-300"
+                      ? "border-ok-500/30 bg-ok-500/10 text-ok-300 hover:bg-ok-500/20"
+                      : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-500 hover:border-[#444448] hover:text-white"
                   }`}
                 >
                   {currentRequirePerson ? "Persona: Sí" : "Persona: No"}
@@ -811,7 +811,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                             className={`rounded-xl border px-2.5 py-1 text-xs font-medium transition ${
                               isSelected
                                 ? "border-ok-500/50 bg-ok-500/20 text-ok-200"
-                                : "border-white/8 bg-white/5 text-steel-400 hover:border-white/20 hover:text-steel-200"
+                                : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-400 hover:border-[#444448] hover:text-steel-200"
                             }`}
                           >
                             {cls}
