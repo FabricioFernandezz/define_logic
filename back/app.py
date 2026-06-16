@@ -6,9 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from back.config.database import init_database
-from back.routes.epp_yolo_routes import router as epp_yolo_router
+from back.routes.epp_routes import router as epp_router
 from back.routes.saved_detection_routes import router as saved_detection_router
-from back.services.epp_yolo_service import init_epp_model
+from back.services.epp_service import init_epp_model
 
 app = FastAPI(title="DefineLogic", version="1.0.0")
 
@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 app.include_router(saved_detection_router)
-app.include_router(epp_yolo_router)
+app.include_router(epp_router)
 
 
 @app.on_event("startup")

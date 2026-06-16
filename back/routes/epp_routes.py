@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
-from back.controllers.epp_yolo_controller import (
+from back.controllers.epp_controller import (
     GenerateDescriptionRequest,
     detect_epp_frame_controller,
     detect_epp_image_controller,

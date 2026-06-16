@@ -6,7 +6,7 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from back.services.epp_yolo_service import (
+from back.services.epp_service import (
     detect_epp_frame,
     detect_epp_from_url,
     detect_epp_image,
