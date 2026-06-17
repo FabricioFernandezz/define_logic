@@ -3,7 +3,7 @@ import EppZoneEditor from "./EppZoneEditor";
 import { getZoneConfig, saveZoneConfig } from "../services/apiDetectionService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const IP_CAMERA_URL = "http://192.168.18.28:8081/";
+const IP_CAMERA_URL = "http://192.168.18.6:8081/";
 const SAMPLE_INTERVAL_MS = 1000;
 const COOLDOWN_SECS = 10;
 
@@ -42,6 +42,12 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const [eppClasses, setEppClasses] = useState([]);
   const [error, setError] = useState("");
   const [selectedZoneId, setSelectedZoneId] = useState(null);
+  const [livePersonCount, setLivePersonCount] = useState(0);
+  const sessionInfractionsRef = useRef({});
+  const [sessionInfractions, setSessionInfractions] = useState({});
+  const complianceBucketsRef = useRef([]);
+  const [complianceBuckets, setComplianceBuckets] = useState([]);
+  const lastInfractionWindowRef = useRef(null);
 
   const FALLBACK_CLASSES = ["helmet", "vest", "glasses", "hardhat", "gloves", "mask", "boots"];
 
@@ -79,6 +85,64 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       .catch(() => {});
   }, []);
 
+  // Accumulate session stats — only on real detection events, not every frame
+  useEffect(() => {
+    if (!lastResult) return;
+
+    // Person count: always update (cheap, just a number)
+    setLivePersonCount(lastResult.personCount ?? lastResult.totalPersons ?? 0);
+
+    // Compliance + infractions: only when model processed a meaningful frame
+    const hasActivity =
+      (lastResult.detections?.length ?? 0) > 0 ||
+      lastResult.alert === true ||
+      (lastResult.zoneResults?.length ?? 0) > 0 ||
+      lastResult.defaultZoneResult != null;
+    if (!hasActivity) return;
+
+    // Compliance buckets — one entry per cooldown window (10s), immutable once written
+    const windowMs = COOLDOWN_SECS * 1000;
+    const windowTs = Math.floor(Date.now() / windowMs) * windowMs;
+    const buckets = complianceBucketsRef.current;
+    const last = buckets[buckets.length - 1];
+    if (last?.ts !== windowTs) {
+      const compliantEpp = (lastResult.detections || []).filter((d) => d.isCompliant).length;
+      const totalEpp = (lastResult.detections || []).length;
+      const compliantPct = totalEpp > 0
+        ? Math.round((compliantEpp / totalEpp) * 100)
+        : lastResult.alert ? 0 : 100;
+      const newBuckets = [...buckets, { ts: windowTs, compliantPct }];
+      if (newBuckets.length > 8) newBuckets.shift();
+      complianceBucketsRef.current = newBuckets;
+      setComplianceBuckets(newBuckets);
+    }
+
+    // Infractions by zone+type — one event per cooldown window (not per frame)
+    if (!lastResult.alert) return;
+    if (lastInfractionWindowRef.current === windowTs) return;
+    lastInfractionWindowRef.current = windowTs;
+    const infrNew = { ...sessionInfractionsRef.current };
+    const addViolations = (zoneLabel, epp) => {
+      if (!epp?.length) return;
+      if (!infrNew[zoneLabel]) infrNew[zoneLabel] = {};
+      epp.forEach((e) => { infrNew[zoneLabel][e] = (infrNew[zoneLabel][e] || 0) + 1; });
+    };
+    (lastResult.zoneResults || []).forEach((zr) => {
+      if (!zr.compliant) {
+        const label = zr.label || zr.zoneId || "Zona";
+        addViolations(label, [...(zr.violatingEpp || []), ...(zr.missingEpp || [])]);
+      }
+    });
+    if (lastResult.defaultZoneResult && !lastResult.defaultZoneResult.compliant) {
+      addViolations("Por defecto", [
+        ...(lastResult.defaultZoneResult.violatingEpp || []),
+        ...(lastResult.defaultZoneResult.missingEpp || []),
+      ]);
+    }
+    sessionInfractionsRef.current = infrNew;
+    setSessionInfractions({ ...infrNew });
+  }, [lastResult]);
+
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -103,6 +167,12 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     setLastResult(null);
     setAnnotatedFrame(null);
     setFrozenFrame(null);
+    setLivePersonCount(0);
+    setSessionInfractions({});
+    sessionInfractionsRef.current = {};
+    setComplianceBuckets([]);
+    complianceBucketsRef.current = [];
+    lastInfractionWindowRef.current = null;
   }, []);
 
   const triggerCooldown = useCallback(() => {
@@ -364,6 +434,16 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           <p className="mt-2 text-sm leading-6 text-[#C0C7D4]">
             El modelo detecta EPP directamente. Define zonas con requisitos distintos.
           </p>
+          {isActive && !isPaused && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-ok-500/20 bg-ok-500/10 px-3 py-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ok-400" />
+              <span className="text-xs text-ok-300">
+                {livePersonCount > 0
+                  ? `Monitoreando ${livePersonCount} persona${livePersonCount !== 1 ? "s" : ""} en tiempo real`
+                  : "Monitoreando en tiempo real"}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -655,6 +735,68 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         )}
       </div>
 
+      {/* Session stats: compliance history + infractions by zone */}
+      {!isEditingZones && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {/* Compliance per-minute bars */}
+          <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-[#0F0F11]/60 p-4">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-steel-400">Cumplimiento EPP · últimas detecciones</p>
+            {complianceBuckets.length > 0 ? (
+              <div className="mt-3 space-y-2.5">
+                {complianceBuckets.map((bucket, i) => {
+                  const nonCompliantPct = 100 - (bucket.compliantPct ?? 100);
+                  const isOk = nonCompliantPct === 0;
+                  return (
+                    <div key={i} className="flex items-center gap-3 text-xs">
+                      <span className="w-14 shrink-0 text-right tabular-nums text-steel-500">
+                        {new Date(bucket.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      </span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#2A2A2E]">
+                        <div
+                          className={`h-full rounded-full ${isOk ? "bg-ok-500" : "bg-warn-500"}`}
+                          style={{ width: isOk ? "100%" : `${Math.max(nonCompliantPct, 8)}%` }}
+                        />
+                      </div>
+                      <span className={`w-16 shrink-0 text-right font-semibold tabular-nums ${isOk ? "text-ok-300" : "text-warn-300"}`}>
+                        {!isOk && nonCompliantPct < 100 ? `${nonCompliantPct}%` : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-steel-500">Acumulando datos…</p>
+            )}
+          </div>
+
+          {/* Infractions by zone + EPP type */}
+          <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-[#0F0F11]/60 p-4">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-steel-400">Infracciones · sesión actual</p>
+            {Object.keys(sessionInfractions).length > 0 ? (
+              <div className="mt-3 space-y-4">
+                {Object.entries(sessionInfractions).map(([zoneLabel, eppCounts]) => (
+                  <div key={zoneLabel}>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-steel-500">{zoneLabel}</p>
+                    <div className="space-y-1">
+                      {Object.entries(eppCounts)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([epp, count]) => (
+                          <div key={epp} className="flex items-center justify-between text-xs">
+                            <span className="capitalize text-[#C0C7D4]">Sin {epp}</span>
+                            <span className="font-semibold tabular-nums text-warn-300">{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-ok-300">Sin infracciones registradas</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Zone editor — shown when paused or camera off */}
       {isEditingZones && (
         <div className="mt-6 flex flex-col gap-4">
@@ -838,30 +980,33 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         );
       })()}
 
-      {isActive && (
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-steel-400">
-          {!isPaused ? (
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-ok-400" />
-              Activo · detección continua
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-accent-400" />
-              En pausa · cámara activa
-            </span>
-          )}
-          {cooldownRemaining > 0 && (
-            <span className="text-warn-300">· cooldown {cooldownRemaining}s</span>
-          )}
-          {zones.length > 0 && (
-            <span className="text-ok-400">· {zones.length} zona{zones.length > 1 ? "s" : ""}</span>
-          )}
-          {defaultZoneEpp.length > 0 && (
-            <span className="text-ok-400">· por defecto: {defaultZoneEpp.join(", ")}</span>
-          )}
-        </div>
-      )}
+      <div className="mt-3 flex flex-wrap gap-3 text-xs text-steel-400">
+        {!isActive ? (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-steel-500" />
+            Estado cámara · Inactiva
+          </span>
+        ) : !isPaused ? (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-ok-400" />
+            Estado cámara · Activa
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-accent-400" />
+            Estado cámara · En pausa
+          </span>
+        )}
+        {isActive && cooldownRemaining > 0 && (
+          <span className="text-warn-300">· cooldown {cooldownRemaining}s</span>
+        )}
+        {isActive && zones.length > 0 && (
+          <span className="text-ok-400">· {zones.length} zona{zones.length > 1 ? "s" : ""}</span>
+        )}
+        {isActive && defaultZoneEpp.length > 0 && (
+          <span className="text-ok-400">· por defecto: {defaultZoneEpp.join(", ")}</span>
+        )}
+      </div>
     </section>
   );
 }

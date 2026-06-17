@@ -382,11 +382,14 @@ async def detect_epp_frame(
         person_count_pre = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
         alert = person_count_pre > 0 and len(display_detections) == 0
 
-    person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
+    person_dets = [d for d in detections if d["label"].lower() in PERSON_LABELS]
+    person_count = len(person_dets)
+    person_confidence = round(sum(d["confidence"] for d in person_dets) / len(person_dets), 2) if person_dets else 0.0
 
     payload: Dict[str, Any] = {
         "detections": display_detections,
         "personCount": person_count,
+        "personConfidence": person_confidence,
         "alert": alert,
         "zoneResults": zone_results,
         "defaultZoneResult": default_zone_result,
@@ -517,7 +520,9 @@ async def detect_epp_from_url(
         person_count_pre = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
         alert = person_count_pre > 0 and len(display_detections) == 0
 
-    person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
+    person_dets = [d for d in detections if d["label"].lower() in PERSON_LABELS]
+    person_count = len(person_dets)
+    person_confidence = round(sum(d["confidence"] for d in person_dets) / len(person_dets), 2) if person_dets else 0.0
 
     # Always return annotated frame for live view (even with no detections)
     annotated = _annotate(image_rgb, display_detections)
@@ -527,6 +532,7 @@ async def detect_epp_from_url(
     return {
         "detections": display_detections,
         "personCount": person_count,
+        "personConfidence": person_confidence,
         "alert": alert,
         "zoneResults": zone_results,
         "defaultZoneResult": default_zone_result,

@@ -55,8 +55,10 @@ const buildEppImageEntry = (image, result) => ({
 
 const buildEppCameraEntry = (frameData) => {
   const dets = frameData.result.detections || [];
-  const confidence =
+  const eppConfidence =
     dets.length > 0 ? dets.reduce((s, d) => s + d.confidence, 0) / dets.length : 0;
+  const personConfidence = frameData.result.personConfidence ?? 0;
+  const confidence = dets.length > 0 ? eppConfidence : personConfidence;
   const zoneResults = frameData.result.zoneResults || [];
   const alertingZones = zoneResults.filter((zr) => zr.active !== false && !zr.compliant);
   return {

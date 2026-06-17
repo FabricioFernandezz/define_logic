@@ -54,7 +54,12 @@ export default function DetectionList({ items, onSelectItem, formatTimestamp, fu
                     <p className="mt-0.5 text-xs text-warn-300">Zona por defecto</p>
                   )}
                   <p className="mt-0.5 text-xs text-steel-400">
-                    {item.detections.length} det. · confianza {item.confidence.toFixed(2)}
+                    {item.detections.length > 0
+                      ? `${item.detections.length} det. EPP`
+                      : item.personCount > 0
+                        ? `${item.personCount} persona${item.personCount !== 1 ? "s" : ""} detectada${item.personCount !== 1 ? "s" : ""}`
+                        : "sin detecciones"}
+                    {item.confidence > 0 ? ` · conf. ${item.confidence.toFixed(2)}` : ""}
                   </p>
                 </div>
               </button>
