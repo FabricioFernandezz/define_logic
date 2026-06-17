@@ -354,7 +354,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   }
 
   return (
-    <section id="epp-camera-section" className="rounded-[2rem] border border-[#2A2A2E] bg-[#161618] p-5 shadow-glow">
+    <section id="epp-camera-section" className="flex flex-col h-full rounded-[2rem] border border-[#2A2A2E] bg-[#161618] p-5 shadow-glow">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>

@@ -103,7 +103,7 @@ const VIEW_META = {
   "epp-image": {
     label: "Análisis de imagen",
     title: "Detección en imagen",
-    subtitle: "Sube una imagen para analizar el cumplimiento de EPP con el modelo YOLOv8.",
+    subtitle: "Sube una imagen para analizar el cumplimiento de EPP.",
   },
   "epp-live": {
     label: "Tiempo real",
@@ -427,7 +427,7 @@ export default function App() {
       <TopNav activeView={activeView} onNavigate={handleNavigate} />
 
       <main className="relative flex-1 overflow-y-auto scrollbar-thin" style={{ background: '#0D0D0E' }}>
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-5 py-5">
 
           {isSaved && (
             <div className="animate-fadeUp flex flex-col gap-5">
@@ -449,7 +449,7 @@ export default function App() {
           {isEppImage && (
             <div className="animate-fadeUp flex flex-col gap-5">
               <ViewHeader {...VIEW_META["epp-image"]} badge="Modelo activo" />
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_352px]">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_380px]">
                 <section className="flex flex-col gap-5">
                   <EppImageDetector onEppDetection={handleEppDetection} />
                 </section>
@@ -465,12 +465,12 @@ export default function App() {
           )}
 
           {/* EPP Live — always mounted so camera persists */}
-          <div className={isEppLive ? "animate-fadeUp flex flex-col gap-5" : "hidden"}>
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_352px]">
-              <section className="flex flex-col gap-5">
+          <div className={isEppLive ? "animate-fadeUp" : "hidden"}>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_380px]" style={{ minHeight: 'calc(100vh - 4.5rem)' }}>
+              <section className="flex flex-col h-full">
                 <EppLiveCamera active={true} onEppCameraDetection={handleEppCameraDetection} />
               </section>
-              <aside className="xl:sticky xl:top-5 xl:h-[calc(100vh-5rem)]">
+              <aside className="xl:sticky xl:top-0 xl:h-[calc(100vh-4.5rem)]">
                 <DetectionList
                   items={eppHistory}
                   onSelectItem={handleEppHistorySelect}

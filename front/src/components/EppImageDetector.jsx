@@ -73,7 +73,7 @@ export default function EppImageDetector({ onEppDetection }) {
             <p className="text-[10px] uppercase tracking-[0.3em] text-accent-500/80">Carga</p>
             <h2 className="mt-1 text-xl font-semibold text-white">Detección EPP en imagen</h2>
             <p className="mt-1 text-sm text-steel-400">
-              Modelo YOLO directo para detectar EPP. Procesa en una sola pasada.
+              Detección directa de EPP. Procesa en una sola pasada.
             </p>
           </div>
           <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-accent-600/30 transition hover:bg-accent-600">
@@ -118,7 +118,7 @@ export default function EppImageDetector({ onEppDetection }) {
 
           <div className="flex flex-col justify-between gap-4 rounded-xl border border-steel-200 bg-steel-800 p-4">
             <div>
-              <p className="text-sm font-medium text-white/90">Modelo YOLO</p>
+              <p className="text-sm font-medium text-white/90">Modelo de detección</p>
               <ul className="mt-3 space-y-3 text-sm text-steel-400">
                 <li className="flex gap-3">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent-500" />
@@ -206,7 +206,7 @@ export default function EppImageDetector({ onEppDetection }) {
                   <span className="rounded-full border border-steel-200 bg-steel-900/90 px-2.5 py-1 text-xs text-gray-300 shadow-sm">{image?.name}</span>
                   {result && (
                     <span className="rounded-full border border-accent-500/30 bg-accent-500/10 px-2.5 py-1 text-xs text-accent-400">
-                      yolo26_epp · {result.processingTimeMs}ms
+                      {result.processingTimeMs}ms
                     </span>
                   )}
                 </div>
