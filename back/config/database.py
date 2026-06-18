@@ -31,6 +31,50 @@ def get_db_engine() -> Engine:
 def init_database() -> None:
     engine = get_db_engine()
     with engine.begin() as connection:
+        # --- Multi-tenant: industrias y usuarios ---
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS industries (
+                    id SERIAL PRIMARY KEY,
+                    nombre VARCHAR(200) NOT NULL,
+                    owner_user_id INTEGER,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    nombre VARCHAR(200) NOT NULL,
+                    rol VARCHAR(20) NOT NULL DEFAULT 'member',
+                    industry_id INTEGER NOT NULL REFERENCES industries(id),
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        # Whitelist de mails autorizados por industria (invitaciones)
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS industry_allowed_emails (
+                    id SERIAL PRIMARY KEY,
+                    industry_id INTEGER NOT NULL REFERENCES industries(id),
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    used BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+
+        # --- Datos de la app, scoped por industria ---
         connection.execute(
             text(
                 """
@@ -43,6 +87,7 @@ def init_database() -> None:
                 """
             )
         )
+        # epp_zone_config.id == industry_id (una config por industria)
         connection.execute(
             text(
                 """
@@ -54,5 +99,12 @@ def init_database() -> None:
                     default_zone_require_person BOOLEAN NOT NULL DEFAULT FALSE
                 )
                 """
+            )
+        )
+
+        # --- Migracion: agregar industry_id a tablas existentes ---
+        connection.execute(
+            text(
+                "ALTER TABLE saved_detections ADD COLUMN IF NOT EXISTS industry_id INTEGER"
             )
         )

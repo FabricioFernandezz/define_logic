@@ -4,9 +4,13 @@ import DetectionReview from "./components/DetectionReview";
 import SavedDetectionsPanel from "./components/SavedDetectionsPanel";
 import EppImageDetector from "./components/EppImageDetector";
 import EppLiveCamera from "./components/EppLiveCamera";
+import AuthScreen from "./components/AuthScreen";
+import InvitePanel from "./components/InvitePanel";
+import { useAuth } from "./context/AuthContext";
 import {
   getSavedDetectionsFromBackend,
   saveDetectionToBackend,
+  deleteSavedDetectionFromBackend,
 } from "./services/apiDetectionService";
 
 const createId = () => {
@@ -117,6 +121,11 @@ const VIEW_META = {
     title: "Actividad reciente",
     subtitle: "Todas las detecciones registradas en esta sesión.",
   },
+  invite: {
+    label: "Equipo",
+    title: "Encargados de la industria",
+    subtitle: "Invita por email a los encargados que podrán acceder a esta industria.",
+  },
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -128,7 +137,7 @@ const NAV_ITEMS = [
   { id: "saved",       label: "Base de datos" },
 ];
 
-function TopNav({ activeView, onNavigate }) {
+function TopNav({ activeView, onNavigate, user, onLogout }) {
   const [time, setTime] = useState(() => {
     const d = new Date();
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
@@ -142,6 +151,11 @@ function TopNav({ activeView, onNavigate }) {
     return () => clearInterval(tick);
   }, []);
 
+  const navItems =
+    user?.rol === "owner"
+      ? [...NAV_ITEMS, { id: "invite", label: "Equipo" }]
+      : NAV_ITEMS;
+
   return (
     <header className="flex h-12 shrink-0 items-center justify-between px-4" style={{ background: '#111113', borderBottom: '1px solid #2A2A2E' }}>
       <div className="flex items-center gap-2.5">
@@ -152,7 +166,7 @@ function TopNav({ activeView, onNavigate }) {
       </div>
 
       <nav className="flex items-center">
-        {NAV_ITEMS.map((item, i) => {
+        {navItems.map((item, i) => {
           const isActive =
             activeView === item.id ||
             (activeView === "epp-review" && item.id === "epp-history");
@@ -181,6 +195,24 @@ function TopNav({ activeView, onNavigate }) {
         })}
         <span className="ml-5 font-mono text-xs tabular-nums text-steel-500">{time}</span>
       </nav>
+
+      <div className="flex items-center gap-3">
+        {user && (
+          <div className="hidden text-right sm:block">
+            <p className="text-xs font-semibold leading-tight text-white">{user.nombre}</p>
+            <p className="text-[10px] leading-tight text-steel-500">
+              {user.rol === "owner" ? "Encargado dueño" : "Encargado"}
+            </p>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={onLogout}
+          className="rounded-lg border border-steel-200 px-3 py-1 text-xs font-medium text-steel-300 transition hover:border-accent-500 hover:text-white"
+        >
+          Salir
+        </button>
+      </div>
     </header>
   );
 }
@@ -242,7 +274,8 @@ function ViewHeader({ label, title, subtitle, badge, stats }) {
   );
 }
 
-export default function App() {
+function MainApp() {
+  const { user, logout } = useAuth();
   const [activeView, setActiveView] = useState("epp-live");
   const [savedDetections, setSavedDetections] = useState([]);
   const [savedDetectionsLoading, setSavedDetectionsLoading] = useState(false);
@@ -358,6 +391,19 @@ export default function App() {
     }
   };
 
+  const handleDeleteSavedDetection = async (id) => {
+    try {
+      await deleteSavedDetectionFromBackend(id);
+      setSavedDetections((current) => current.filter((item) => item.id !== id));
+      pushNotification({ type: "success", message: "Registro eliminado de base de datos." });
+    } catch (error) {
+      pushNotification({
+        type: "warning",
+        message: error instanceof Error ? error.message : "No se pudo eliminar el registro.",
+      });
+    }
+  };
+
   const handleNotificationAction = () => {
     if (!notification) return;
     if (notification.action === "open-saved") {
@@ -413,6 +459,7 @@ export default function App() {
   const isEppLive = activeView === "epp-live";
   const isEppHistory = activeView === "epp-history";
   const isEppReview = activeView === "epp-review";
+  const isInvite = activeView === "invite";
 
   const eppCurrentIdx = eppHistory.findIndex((h) => h.id === eppCurrentEntryId);
   const eppCurrentEntry = eppCurrentIdx >= 0 ? eppHistory[eppCurrentIdx] : null;
@@ -426,7 +473,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden text-white" style={{ background: '#0D0D0E' }}>
-      <TopNav activeView={activeView} onNavigate={handleNavigate} />
+      <TopNav activeView={activeView} onNavigate={handleNavigate} user={user} onLogout={logout} />
 
       <main className="relative flex-1 overflow-y-auto scrollbar-thin" style={{ background: '#0D0D0E' }}>
         <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-5 py-5">
@@ -444,6 +491,7 @@ export default function App() {
                 loading={savedDetectionsLoading}
                 error={savedDetectionsError}
                 onRetry={refreshSavedDetections}
+                onDelete={handleDeleteSavedDetection}
               />
             </div>
           )}
@@ -502,6 +550,13 @@ export default function App() {
                 formatTimestamp={formatTimestamp}
                 fullWidth
               />
+            </div>
+          )}
+
+          {isInvite && user?.rol === "owner" && (
+            <div className="animate-fadeUp flex flex-col gap-5">
+              <ViewHeader {...VIEW_META.invite} />
+              <InvitePanel />
             </div>
           )}
 
@@ -570,4 +625,23 @@ export default function App() {
       )}
     </div>
   );
+}
+
+export default function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div
+        className="flex h-screen items-center justify-center text-sm text-steel-400"
+        style={{ background: "#0D0D0E" }}
+      >
+        Cargando…
+      </div>
+    );
+  }
+
+  if (!user) return <AuthScreen />;
+
+  return <MainApp />;
 }

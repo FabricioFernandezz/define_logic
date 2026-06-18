@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export default function SavedDetectionsPanel({
   items,
   selectedId,
@@ -5,8 +7,22 @@ export default function SavedDetectionsPanel({
   loading = false,
   error = null,
   onRetry,
+  onDelete,
 }) {
   const selected = items.find((item) => item.id === selectedId) || items[0] || null;
+  const [confirmId, setConfirmId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!selected || !onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(selected.id);
+      setConfirmId(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -78,9 +94,50 @@ export default function SavedDetectionsPanel({
           </div>
         ) : (
           <>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-accent-500/80">Detalle guardado</p>
-            <h3 className="mt-1 text-xl font-semibold text-white truncate">{selected.nombre}</h3>
-            <p className="mt-0.5 text-xs text-steel-400">Registro #{selected.id}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-accent-500/80">Detalle guardado</p>
+                <h3 className="mt-1 text-xl font-semibold text-white truncate">{selected.nombre}</h3>
+                <p className="mt-0.5 text-xs text-steel-400">Registro #{selected.id}</p>
+              </div>
+
+              {onDelete && (
+                <div className="shrink-0">
+                  {confirmId === selected.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-steel-400">¿Eliminar?</span>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="rounded-lg bg-warn-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-warn-400 disabled:opacity-60"
+                      >
+                        {deleting ? "…" : "Sí, eliminar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(null)}
+                        disabled={deleting}
+                        className="rounded-lg border border-steel-200 px-3 py-1.5 text-xs font-medium text-steel-300 transition hover:text-white"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(selected.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-warn-500/30 bg-warn-500/10 px-3 py-1.5 text-xs font-semibold text-warn-300 transition hover:bg-warn-500/20"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                      </svg>
+                      Eliminar
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="mt-4 overflow-hidden rounded-xl border border-steel-200 bg-steel-900">
               <img

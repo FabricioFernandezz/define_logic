@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from back.config.database import init_database
+from back.routes.auth_routes import router as auth_router
 from back.routes.epp_routes import router as epp_router
 from back.routes.saved_detection_routes import router as saved_detection_router
 from back.services.epp_service import init_epp_model
@@ -20,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(saved_detection_router)
 app.include_router(epp_router)
 

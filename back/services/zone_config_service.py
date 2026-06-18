@@ -8,10 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from back.config.database import get_db_engine, init_database
 
-_CONFIG_ID = 1
 
-
-def get_zone_config() -> Dict[str, Any]:
+def get_zone_config(industry_id: int) -> Dict[str, Any]:
     init_database()
 
     engine = get_db_engine()
@@ -26,7 +24,7 @@ def get_zone_config() -> Dict[str, Any]:
                         WHERE id = :id
                         """
                     ),
-                    {"id": _CONFIG_ID},
+                    {"id": industry_id},
                 )
                 .mappings()
                 .first()
@@ -55,6 +53,7 @@ def save_zone_config(
     default_zone_epp: list,
     default_zone_active: bool,
     default_zone_require_person: bool,
+    industry_id: int,
 ) -> Dict[str, Any]:
     init_database()
 
@@ -74,7 +73,7 @@ def save_zone_config(
                     """
                 ),
                 {
-                    "id": _CONFIG_ID,
+                    "id": industry_id,
                     "zones": json.dumps(zones),
                     "default_zone_epp": json.dumps(default_zone_epp),
                     "default_zone_active": default_zone_active,

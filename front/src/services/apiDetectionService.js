@@ -1,3 +1,5 @@
+import { authHeaders } from "./authService";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const toNormalizedDetections = (response, imageMeta) => {
@@ -64,7 +66,9 @@ export const pingBackend = async () => {
 };
 
 export const getSavedDetectionsFromBackend = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/saved-detections`);
+  const response = await fetch(`${API_BASE_URL}/api/saved-detections`, {
+    headers: { ...authHeaders() },
+  });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(errorText || "No se pudo obtener imágenes guardadas");
@@ -73,7 +77,9 @@ export const getSavedDetectionsFromBackend = async () => {
 };
 
 export const getZoneConfig = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/epp/zone-config`);
+  const response = await fetch(`${API_BASE_URL}/api/epp/zone-config`, {
+    headers: { ...authHeaders() },
+  });
   if (!response.ok) throw new Error("No se pudo obtener configuración de zonas");
   return response.json();
 };
@@ -81,10 +87,22 @@ export const getZoneConfig = async () => {
 export const saveZoneConfig = async ({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }) => {
   const response = await fetch(`${API_BASE_URL}/api/epp/zone-config`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson }),
   });
   if (!response.ok) throw new Error("No se pudo guardar configuración de zonas");
+  return response.json();
+};
+
+export const deleteSavedDetectionFromBackend = async (id) => {
+  const response = await fetch(`${API_BASE_URL}/api/saved-detections/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "No se pudo eliminar el registro");
+  }
   return response.json();
 };
 
@@ -114,6 +132,7 @@ export const saveDetectionToBackend = async ({ nombre, imagen, descripcion }) =>
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
     },
     body: JSON.stringify({
       nombre,

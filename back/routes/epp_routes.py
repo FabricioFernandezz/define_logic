@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, UploadFile
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
+from back.dependencies import get_current_user
 from back.controllers.epp_controller import (
     GenerateDescriptionRequest,
     detect_epp_frame_controller,
@@ -58,10 +61,13 @@ async def epp_generate_description(payload: GenerateDescriptionRequest):
 
 
 @router.get("/api/epp/zone-config")
-async def epp_get_zone_config():
-    return await get_zone_config_controller()
+async def epp_get_zone_config(current_user: Dict[str, Any] = Depends(get_current_user)):
+    return await get_zone_config_controller(current_user["industry_id"])
 
 
 @router.post("/api/epp/zone-config")
-async def epp_save_zone_config(payload: ZoneConfigSave):
-    return await save_zone_config_controller(payload)
+async def epp_save_zone_config(
+    payload: ZoneConfigSave,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    return await save_zone_config_controller(payload, current_user["industry_id"])
