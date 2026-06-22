@@ -16,7 +16,7 @@ from fastapi import HTTPException, UploadFile
 project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
-EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best7.onnx"
+EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best7v2.onnx"
 EPP_CONF_THRESHOLD = 0.20
 PERSON_CONF_THRESHOLD = 0.10  # Lower threshold for person class — EPP check needs person detected
 
@@ -27,6 +27,16 @@ NON_COMPLIANT_KEYWORDS = {"no_", "sin_", "without_", "no-", "sin-", "without-"}
 PERSON_LABELS: frozenset = frozenset({"person", "worker", "human", "people", "persona", "trabajador"})
 
 SKIP_LABELS: frozenset = frozenset({"none", "null", "background", "otros", "other"})
+
+
+def _parse_json_list(raw: Optional[str]) -> list:
+    if not raw:
+        return []
+    try:
+        val = json.loads(raw)
+        return val if isinstance(val, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 
 def _is_non_compliant(label: str) -> bool:
@@ -44,7 +54,7 @@ def init_epp_model() -> None:
     if not EPP_MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Modelo EPP no encontrado: {EPP_MODEL_PATH}. "
-            "Verifica que el archivo best7.onnx existe en ml/runs/yolo26_epp/"
+            "Verifica que el archivo best7v2.onnx existe en ml/runs/yolo26_epp/"
         )
 
     try:
@@ -323,24 +333,16 @@ def _check_default_zone(
     }
 
 
-async def detect_epp_frame(
-    file: UploadFile,
+def _process_decoded(
+    image_bgr: np.ndarray,
     zones_raw: Optional[str] = None,
     default_zone_epp_raw: Optional[str] = None,
     default_zone_active_raw: Optional[str] = "true",
     default_zone_require_person_raw: Optional[str] = "false",
+    always_annotate: bool = False,
 ) -> Dict[str, Any]:
-    init_epp_model()
-
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Frame vacío")
-
-    np_buffer = np.frombuffer(raw, dtype=np.uint8)
-    image_bgr = cv2.imdecode(np_buffer, cv2.IMREAD_COLOR)
-    if image_bgr is None:
-        raise HTTPException(status_code=400, detail="No se pudo decodificar el frame")
-
+    """Shared inference + zone-compliance pipeline for an already-decoded BGR frame.
+    Reused by the HTTP endpoints and the WebSocket channel."""
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     detections = _run_inference(image_rgb)
     img_h, img_w = image_bgr.shape[:2]
@@ -348,20 +350,8 @@ async def detect_epp_frame(
     # Persons and background labels are used internally or ignored — not shown in the display panel
     display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
 
-    zones: List[Dict[str, Any]] = []
-    if zones_raw:
-        try:
-            zones = json.loads(zones_raw)
-        except (json.JSONDecodeError, TypeError):
-            zones = []
-
-    default_epp: List[str] = []
-    if default_zone_epp_raw:
-        try:
-            default_epp = json.loads(default_zone_epp_raw)
-        except (json.JSONDecodeError, TypeError):
-            default_epp = []
-
+    zones = _parse_json_list(zones_raw)
+    default_epp = _parse_json_list(default_zone_epp_raw)
     default_active: bool = (default_zone_active_raw or "true").strip().lower() != "false"
     default_require_person: bool = (default_zone_require_person_raw or "false").strip().lower() == "true"
 
@@ -393,15 +383,61 @@ async def detect_epp_frame(
         "alert": alert,
         "zoneResults": zone_results,
         "defaultZoneResult": default_zone_result,
+        "imageSize": {"width": img_w, "height": img_h},
     }
 
-    if detections or alert:
+    if always_annotate or detections or alert:
         annotated = _annotate(image_rgb, display_detections)
         if zone_results or default_zone_result:
             annotated = _annotate_zones_on_frame(annotated, zones, zone_results, img_w, img_h)
         payload["annotated_frame"] = _encode(annotated)
 
     return payload
+
+
+def process_frame_bytes(
+    raw: bytes,
+    zones_raw: Optional[str] = None,
+    default_zone_epp_raw: Optional[str] = None,
+    default_zone_active_raw: Optional[str] = "true",
+    default_zone_require_person_raw: Optional[str] = "false",
+    always_annotate: bool = False,
+) -> Dict[str, Any]:
+    """Decode raw JPEG bytes and run the detection pipeline. Sync — call via a
+    thread executor from async contexts (the WebSocket handler) to avoid blocking."""
+    init_epp_model()
+    np_buffer = np.frombuffer(raw, dtype=np.uint8)
+    image_bgr = cv2.imdecode(np_buffer, cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise HTTPException(status_code=400, detail="No se pudo decodificar el frame")
+    return _process_decoded(
+        image_bgr,
+        zones_raw,
+        default_zone_epp_raw,
+        default_zone_active_raw,
+        default_zone_require_person_raw,
+        always_annotate,
+    )
+
+
+async def detect_epp_frame(
+    file: UploadFile,
+    zones_raw: Optional[str] = None,
+    default_zone_epp_raw: Optional[str] = None,
+    default_zone_active_raw: Optional[str] = "true",
+    default_zone_require_person_raw: Optional[str] = "false",
+) -> Dict[str, Any]:
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Frame vacío")
+    return process_frame_bytes(
+        raw,
+        zones_raw,
+        default_zone_epp_raw,
+        default_zone_active_raw,
+        default_zone_require_person_raw,
+        always_annotate=False,
+    )
 
 
 def _annotate_zones_on_frame(
@@ -482,60 +518,12 @@ async def detect_epp_from_url(
     if image_bgr is None:
         raise HTTPException(status_code=502, detail="No se pudo decodificar el frame de la cámara IP")
 
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    detections = _run_inference(image_rgb)
-    img_h, img_w = image_bgr.shape[:2]
-
-    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
-
-    zones: List[Dict[str, Any]] = []
-    if zones_raw:
-        try:
-            zones = json.loads(zones_raw)
-        except (json.JSONDecodeError, TypeError):
-            zones = []
-
-    default_epp: List[str] = []
-    if default_zone_epp_raw:
-        try:
-            default_epp = json.loads(default_zone_epp_raw)
-        except (json.JSONDecodeError, TypeError):
-            default_epp = []
-
-    default_active: bool = (default_zone_active_raw or "true").strip().lower() != "false"
-    default_require_person: bool = (default_zone_require_person_raw or "false").strip().lower() == "true"
-
-    zone_results: List[Dict[str, Any]] = []
-    default_zone_result: Optional[Dict[str, Any]] = None
-
-    if zones or default_epp or not default_active:
-        zone_results = _check_zone_compliance(detections, zones, img_w, img_h)
-        default_zone_result = _check_default_zone(
-            detections, zones, default_epp, default_active, default_require_person, img_w, img_h
-        )
-        zone_alert = any(not z["compliant"] and z["hasRequired"] for z in zone_results)
-        default_alert = bool(default_zone_result and not default_zone_result["compliant"])
-        alert = zone_alert or default_alert
-    else:
-        person_count_pre = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
-        alert = person_count_pre > 0 and len(display_detections) == 0
-
-    person_dets = [d for d in detections if d["label"].lower() in PERSON_LABELS]
-    person_count = len(person_dets)
-    person_confidence = round(sum(d["confidence"] for d in person_dets) / len(person_dets), 2) if person_dets else 0.0
-
-    # Always return annotated frame for live view (even with no detections)
-    annotated = _annotate(image_rgb, display_detections)
-    if zone_results or default_zone_result:
-        annotated = _annotate_zones_on_frame(annotated, zones, zone_results, img_w, img_h)
-
-    return {
-        "detections": display_detections,
-        "personCount": person_count,
-        "personConfidence": person_confidence,
-        "alert": alert,
-        "zoneResults": zone_results,
-        "defaultZoneResult": default_zone_result,
-        "imageSize": {"width": img_w, "height": img_h},
-        "annotated_frame": _encode(annotated),
-    }
+    # Always return an annotated frame for the live view (even with no detections)
+    return _process_decoded(
+        image_bgr,
+        zones_raw,
+        default_zone_epp_raw,
+        default_zone_active_raw,
+        default_zone_require_person_raw,
+        always_annotate=True,
+    )
