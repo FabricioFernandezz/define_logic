@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import EppZoneEditor from "./EppZoneEditor";
 import { getZoneConfig, saveZoneConfig } from "../services/apiDetectionService";
+import { openEppSocket } from "../services/eppSocketService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const IP_CAMERA_URL = "http://192.168.18.6:8081/";
@@ -13,6 +14,9 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const ipImgRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
+  const wsRef = useRef(null);
+  const handleResultRef = useRef(null);
+  const configRef = useRef({});
   const isProcessingRef = useRef(false);
   const isCooldownRef = useRef(false);
   const isActiveRef = useRef(false);
@@ -148,6 +152,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch { /* ignore */ }
+      wsRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -192,115 +200,98 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     }, 1000);
   }, []);
 
-  const captureAndSend = useCallback(async () => {
-    if (isProcessingRef.current || isPaused) return;
-
+  // Handle one detection payload pushed by the server over the WebSocket.
+  const handleResult = useCallback((data) => {
+    if (isPausedRef.current) return; // keep the frozen frame while editing zones
+    if (data?.error) {
+      setError(typeof data.error === "string" ? data.error.slice(0, 200) : "Error del servidor");
+      return;
+    }
     const isIpMode = cameraSourceRef.current === "ip";
-    let blob = null;
+    setError("");
+    setLastResult(data);
 
-    if (!isIpMode) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < 2) return;
-      const vidW = video.videoWidth || 640;
-      const vidH = video.videoHeight || 480;
-      const scale = vidW < 640 ? 640 / vidW : 1;
-      canvas.width = Math.round(vidW * scale);
-      canvas.height = Math.round(vidH * scale);
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      lastFrameUrlRef.current = canvas.toDataURL("image/jpeg", 0.92);
-      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
-      if (!blob) return;
+    if (data.annotated_frame) {
+      setAnnotatedFrame(data.annotated_frame);
+      if (isIpMode) lastFrameUrlRef.current = data.annotated_frame;
     }
 
-    isProcessingRef.current = true;
-    try {
-      const formData = new FormData();
-      if (isIpMode) {
-        formData.append("camera_url", IP_CAMERA_URL);
-      } else {
-        formData.append("file", blob, "frame.jpg");
+    const now = Date.now();
+    if (data.alert) lastAlertTsRef.current = now;
+    const stickyAlert = data.alert || (now - lastAlertTsRef.current < ALERT_STICKY_MS);
+
+    if (stickyAlert) {
+      if (now - lastSavedTsRef.current >= SAVE_INTERVAL_MS) {
+        lastSavedTsRef.current = now;
+        onEppCameraDetection?.({
+          frameDataUrl: data.annotated_frame || lastFrameUrlRef.current,
+          width: isIpMode ? (data.imageSize?.width || 640) : canvasRef.current?.width,
+          height: isIpMode ? (data.imageSize?.height || 480) : canvasRef.current?.height,
+          result: data,
+          timestamp: new Date().toISOString(),
+          zonesConfig: zones,
+          defaultZoneEpp: defaultZoneEpp,
+        });
       }
-
-      if (zones.length > 0) {
-        formData.append(
-          "zones",
-          JSON.stringify(
-            zones.map((z) => ({
-              id: z.id,
-              label: z.label,
-              bbox: z.bbox,
-              required_epp: z.requiredEpp,
-              active: z.active !== false,
-              require_person: z.requirePerson === true,
-            }))
-          )
-        );
+      if (!isCooldownRef.current) {
+        triggerCooldown();
       }
-
-      if (defaultZoneEpp.length > 0) {
-        formData.append("default_zone_epp", JSON.stringify(defaultZoneEpp));
-      }
-
-      formData.append("default_zone_active", defaultZoneActive ? "true" : "false");
-      formData.append("default_zone_require_person", defaultZoneRequirePerson ? "true" : "false");
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000);
-      let resp;
-      try {
-        resp = await fetch(
-          isIpMode
-            ? `${API_BASE_URL}/api/epp/detect-ip-frame`
-            : `${API_BASE_URL}/api/epp/detect-frame`,
-          { method: "POST", body: formData, signal: controller.signal }
-        );
-      } finally {
-        clearTimeout(timeoutId);
-      }
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => `HTTP ${resp.status}`);
-        setError(`Error del servidor (${resp.status}): ${errText.slice(0, 200)}`);
-        return;
-      }
-
-      const data = await resp.json();
-      setError("");
-      setLastResult(data);
-
-      if (data.annotated_frame) {
-        setAnnotatedFrame(data.annotated_frame);
-        if (isIpMode) lastFrameUrlRef.current = data.annotated_frame;
-      }
-
-      const now = Date.now();
-      if (data.alert) lastAlertTsRef.current = now;
-      const stickyAlert = data.alert || (now - lastAlertTsRef.current < ALERT_STICKY_MS);
-
-      if (stickyAlert) {
-        if (now - lastSavedTsRef.current >= SAVE_INTERVAL_MS) {
-          lastSavedTsRef.current = now;
-          onEppCameraDetection?.({
-            frameDataUrl: data.annotated_frame || lastFrameUrlRef.current,
-            width: isIpMode ? (data.imageSize?.width || 640) : canvasRef.current?.width,
-            height: isIpMode ? (data.imageSize?.height || 480) : canvasRef.current?.height,
-            result: data,
-            timestamp: new Date().toISOString(),
-            zonesConfig: zones,
-            defaultZoneEpp: defaultZoneEpp,
-          });
-        }
-        if (!isCooldownRef.current) {
-          triggerCooldown();
-        }
-      }
-    } catch {
-      // silence transient network errors
-    } finally {
-      isProcessingRef.current = false;
     }
-  }, [isPaused, zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson, triggerCooldown, onEppCameraDetection]);
+  }, [zones, defaultZoneEpp, triggerCooldown, onEppCameraDetection]);
+
+  // Build the config message sent to the server (once on open, then on changes).
+  const buildConfigMsg = useCallback(() => ({
+    type: "config",
+    mode: cameraSourceRef.current === "ip" ? "ip" : "webcam",
+    camera_url: cameraSourceRef.current === "ip" ? IP_CAMERA_URL : undefined,
+    zones: zones.map((z) => ({
+      id: z.id,
+      label: z.label,
+      bbox: z.bbox,
+      required_epp: z.requiredEpp,
+      active: z.active !== false,
+      require_person: z.requirePerson === true,
+    })),
+    defaultZoneEpp,
+    defaultZoneActive,
+    defaultZoneRequirePerson,
+  }), [zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson]);
+
+  // Webcam only: grab a frame from the canvas and push the JPEG bytes over the socket.
+  const sendFrame = useCallback(async () => {
+    if (isPausedRef.current) return;
+    if (cameraSourceRef.current === "ip") return; // IP frames are server-driven
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return;
+    const vidW = video.videoWidth || 640;
+    const vidH = video.videoHeight || 480;
+    const scale = vidW < 640 ? 640 / vidW : 1;
+    canvas.width = Math.round(vidW * scale);
+    canvas.height = Math.round(vidH * scale);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    lastFrameUrlRef.current = canvas.toDataURL("image/jpeg", 0.92);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    if (!blob) return;
+    const buffer = await blob.arrayBuffer();
+    if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(buffer);
+  }, []);
+
+  // Keep refs fresh so the long-lived socket callbacks always use current handlers.
+  useEffect(() => { handleResultRef.current = handleResult; }, [handleResult]);
+
+  // Push updated config to the server whenever zones/defaults change mid-session.
+  useEffect(() => {
+    const cfg = buildConfigMsg();
+    configRef.current = cfg;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify(cfg)); } catch { /* ignore */ }
+    }
+  }, [buildConfigMsg]);
 
   const startCamera = useCallback(async () => {
     setError("");
@@ -316,11 +307,11 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         await videoRef.current.play();
       }
       setIsActive(true);
-      intervalRef.current = setInterval(captureAndSend, SAMPLE_INTERVAL_MS);
+      // Frame capture interval is started by the WebSocket effect on ws.onopen.
     } catch (err) {
       setError("No se pudo acceder a la cámara: " + (err?.message || "permiso denegado"));
     }
-  }, [captureAndSend]);
+  }, []);
 
   const updateZone = (id, updates) => {
     setZones((prev) => prev.map((z) => (z.id === id ? { ...z, ...updates } : z)));
@@ -348,6 +339,11 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     setIsPaused(true);
     setFrozenFrame(lastFrameUrlRef.current);
     setIsEditingZones(true);
+    // Stop the server-driven IP push while editing zones (webcam stops via the guard).
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ type: "stop" })); } catch { /* ignore */ }
+    }
   };
 
   const handleResume = () => {
@@ -355,6 +351,11 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     setIsPaused(false);
     setIsEditingZones(false);
     isCooldownRef.current = false;
+    // Re-send config to restart the IP push loop with the latest zones.
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify(buildConfigMsg())); } catch { /* ignore */ }
+    }
     saveZoneConfig({
       zones,
       defaultZoneEpp,
@@ -377,34 +378,34 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  // Detection loop: interval for webcam, continuous async loop for IP camera
+  // Open the persistent WebSocket while the camera is active.
+  // Webcam: push frames on an interval. IP: server pushes frames to us.
   useEffect(() => {
     if (!isActive) return;
     isActiveRef.current = true;
 
-    if (cameraSourceRef.current !== "ip") {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(captureAndSend, SAMPLE_INTERVAL_MS);
-      return () => {
-        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-      };
-    }
+    const ws = openEppSocket({
+      onMessage: (data) => handleResultRef.current?.(data),
+      onError: () => setError("Error de conexión con el servidor (WebSocket)"),
+    });
+    wsRef.current = ws;
 
-    // IP camera: fire next frame immediately after current one completes
-    let cancelled = false;
-    const loop = async () => {
-      while (!cancelled) {
-        await captureAndSend();
-        if (cancelled) break;
-        // Small backoff while paused to avoid busy-wait
-        if (isPausedRef.current) {
-          await new Promise((r) => setTimeout(r, 200));
-        }
+    let interval = null;
+    ws.onopen = () => {
+      try { ws.send(JSON.stringify(configRef.current)); } catch { /* ignore */ }
+      if (cameraSourceRef.current !== "ip") {
+        interval = setInterval(sendFrame, SAMPLE_INTERVAL_MS);
+        intervalRef.current = interval;
       }
     };
-    loop();
-    return () => { cancelled = true; };
-  }, [isActive, captureAndSend]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      if (intervalRef.current === interval) intervalRef.current = null;
+      try { ws.close(); } catch { /* ignore */ }
+      if (wsRef.current === ws) wsRef.current = null;
+    };
+  }, [isActive, cameraSource, sendFrame]);
 
   const detections = lastResult?.detections || [];
   const zoneResults = lastResult?.zoneResults || [];
