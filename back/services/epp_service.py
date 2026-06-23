@@ -17,10 +17,19 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
 EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best7v2.onnx"
-EPP_CONF_THRESHOLD = 0.20
+EPP_CONF_THRESHOLD = 0.60
 PERSON_CONF_THRESHOLD = 0.10  # Lower threshold for person class — EPP check needs person detected
 
+# Harness model — separate from the EPP model. Runs only when a zone (or the default
+# zone) requires harness detection, so it adds no cost when nobody asks for it.
+ARNES_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best-arnes-v2.onnx"
+ARNES_CONF_THRESHOLD = 0.60
+# Labels that should trigger the harness model. The model's own class is "harness";
+# "arnes"/"arnés" are accepted as Spanish aliases in case the UI stores those.
+ARNES_LABELS: frozenset = frozenset({"harness", "arnes", "arnés"})
+
 _epp_model = None
+_arnes_model = None
 
 NON_COMPLIANT_KEYWORDS = {"no_", "sin_", "without_", "no-", "sin-", "without-"}
 
@@ -71,6 +80,70 @@ def init_epp_model() -> None:
         _epp_model = YOLO(str(EPP_MODEL_PATH), task="detect")
     except Exception as exc:
         raise RuntimeError(f"Error cargando modelo EPP ONNX: {exc}") from exc
+
+
+def init_arnes_model() -> None:
+    global _arnes_model
+    if _arnes_model is not None:
+        return
+
+    if not ARNES_MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Modelo de arnés no encontrado: {ARNES_MODEL_PATH}. "
+            "Verifica que el archivo best-arnes-v2.onnx existe en ml/runs/yolo26_epp/"
+        )
+
+    try:
+        import ultralytics.nn.backends.onnx as _onnx_be
+        import ultralytics.utils.checks as _ulc
+        _noop = lambda *a, **kw: None
+        _onnx_be.check_requirements = _noop
+        _ulc.check_requirements = _noop
+
+        from ultralytics import YOLO
+        _arnes_model = YOLO(str(ARNES_MODEL_PATH), task="detect")
+    except Exception as exc:
+        raise RuntimeError(f"Error cargando modelo de arnés ONNX: {exc}") from exc
+
+
+def _config_requires_arnes(zones: List[Dict[str, Any]], default_epp: List[str]) -> bool:
+    """True if any active zone or the default zone requests harness detection."""
+    for zone in zones:
+        if zone.get("active", True):
+            if any(str(e).lower() in ARNES_LABELS for e in zone.get("required_epp", [])):
+                return True
+    return any(str(e).lower() in ARNES_LABELS for e in default_epp)
+
+
+def _run_arnes_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
+    results = _arnes_model(image_rgb, conf=ARNES_CONF_THRESHOLD, verbose=False)
+    detections: List[Dict[str, Any]] = []
+
+    for result in results:
+        if result.boxes is None:
+            continue
+        boxes = result.boxes.xyxy.cpu().numpy()
+        confs = result.boxes.conf.cpu().numpy()
+        cls_ids = result.boxes.cls.cpu().numpy().astype(int)
+        names = result.names
+
+        for i, (box, conf, cls_id) in enumerate(zip(boxes, confs, cls_ids)):
+            if conf < ARNES_CONF_THRESHOLD:
+                continue
+            label = names.get(cls_id, str(cls_id))
+            x1, y1, x2, y2 = map(int, box)
+            detections.append(
+                {
+                    # Offset ids so they don't collide with EPP detection ids (React keys)
+                    "id": 1000 + i,
+                    "bbox_pixels": [x1, y1, x2, y2],
+                    "label": label,
+                    "confidence": float(conf),
+                    "isCompliant": not _is_non_compliant(label),
+                }
+            )
+
+    return detections
 
 
 def _run_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
@@ -158,6 +231,7 @@ def _build_summary(detections: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 async def detect_epp_image(file: UploadFile) -> Dict[str, Any]:
     init_epp_model()
+    init_arnes_model()
     started_at = time.perf_counter()
 
     if file.content_type and not file.content_type.startswith("image/"):
@@ -173,7 +247,8 @@ async def detect_epp_image(file: UploadFile) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="No se pudo leer la imagen")
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    detections = _run_inference(image_rgb)
+    # Image-test path runs both models so the user can validate EPP + harness at once
+    detections = _run_inference(image_rgb) + _run_arnes_inference(image_rgb)
     person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
     display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
     summary = _build_summary(display_detections)
@@ -195,9 +270,17 @@ async def detect_epp_image(file: UploadFile) -> Dict[str, Any]:
 
 def get_epp_model_classes() -> Dict[str, Any]:
     init_epp_model()
-    all_classes = sorted(_epp_model.names.values())
+    all_classes = set(_epp_model.names.values())
+    # Add the harness model's classes so they're selectable per-zone. Loading it here
+    # is cheap (one-time) and lets the UI offer harness alongside the EPP classes.
+    try:
+        init_arnes_model()
+        all_classes.update(_arnes_model.names.values())
+    except (FileNotFoundError, RuntimeError):
+        all_classes.update(ARNES_LABELS & {"harness"})  # fall back to the known class name
+
     # Exclude person labels — zone compliance uses them internally, not as selectable EPP
-    visible = [c for c in all_classes if c.lower() not in PERSON_LABELS and c.lower() not in SKIP_LABELS]
+    visible = sorted(c for c in all_classes if c.lower() not in PERSON_LABELS and c.lower() not in SKIP_LABELS)
     compliant = [c for c in visible if not _is_non_compliant(c)]
     return {"all": visible, "compliant": compliant}
 
@@ -347,13 +430,19 @@ def _process_decoded(
     detections = _run_inference(image_rgb)
     img_h, img_w = image_bgr.shape[:2]
 
-    # Persons and background labels are used internally or ignored — not shown in the display panel
-    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
-
     zones = _parse_json_list(zones_raw)
     default_epp = _parse_json_list(default_zone_epp_raw)
     default_active: bool = (default_zone_active_raw or "true").strip().lower() != "false"
     default_require_person: bool = (default_zone_require_person_raw or "false").strip().lower() == "true"
+
+    # Run the harness model only when some zone (or the default zone) asks for it,
+    # then merge its boxes so zone compliance treats "harness" like any other EPP.
+    if _config_requires_arnes(zones, default_epp):
+        init_arnes_model()
+        detections = detections + _run_arnes_inference(image_rgb)
+
+    # Persons and background labels are used internally or ignored — not shown in the display panel
+    display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
 
     zone_results: List[Dict[str, Any]] = []
     default_zone_result: Optional[Dict[str, Any]] = None

@@ -4,6 +4,17 @@ import { getZoneConfig, saveZoneConfig } from "../services/apiDetectionService";
 import { openEppSocket } from "../services/eppSocketService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+// Display-only aliases. Stored values stay as the model class names (English).
+const EPP_LABELS = {
+  harness: "Arnés",
+  helmet: "Casco",
+  vest: "Chaleco",
+  gloves: "Guantes",
+  goggles: "Gafas",
+  boots: "Botas",
+};
+const eppLabel = (cls) => EPP_LABELS[cls?.toLowerCase()] ?? cls;
 const IP_CAMERA_URL = "http://192.168.18.6:8081/";
 const SAMPLE_INTERVAL_MS = 1000;
 const COOLDOWN_SECS = 10;
@@ -958,7 +969,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                                 : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-400 hover:border-[#444448] hover:text-steel-200"
                             }`}
                           >
-                            {cls}
+                            {eppLabel(cls)}
                           </button>
                         );
                       })}
@@ -967,7 +978,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                       <p className="mt-1.5 text-[10px] text-steel-500">Sin EPP requerido → solo informativa</p>
                     )}
                     {currentEpp.length > 0 && (
-                      <p className="mt-1.5 text-[10px] text-ok-400">Requiere: {currentEpp.join(", ")}</p>
+                      <p className="mt-1.5 text-[10px] text-ok-400">Requiere: {currentEpp.map(eppLabel).join(", ")}</p>
                     )}
                   </>
                 )}

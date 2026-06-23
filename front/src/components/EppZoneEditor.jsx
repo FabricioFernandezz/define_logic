@@ -5,6 +5,17 @@ const ZONE_COLORS = [
   "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16",
 ];
 
+// Display-only aliases. Stored values stay as the model class names (English).
+const EPP_LABELS = {
+  harness: "Arnés",
+  helmet: "Casco",
+  vest: "Chaleco",
+  gloves: "Guantes",
+  goggles: "Gafas",
+  boots: "Botas",
+};
+const eppLabel = (cls) => EPP_LABELS[cls?.toLowerCase()] ?? cls;
+
 const createId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
@@ -30,7 +41,7 @@ function EppSelector({ selected, eppClasses, onToggle, emptyHint }) {
                   : "border-[#2A2A2E] bg-[#1C1C1F] text-steel-400 hover:border-white/20 hover:text-white"
               }`}
             >
-              {cls}
+              {eppLabel(cls)}
             </button>
           );
         })}
@@ -39,7 +50,7 @@ function EppSelector({ selected, eppClasses, onToggle, emptyHint }) {
         <p className="mt-1.5 text-[10px] text-steel-500">{emptyHint}</p>
       )}
       {selected.length > 0 && (
-        <p className="mt-1.5 text-[10px] text-ok-400">Requiere: {selected.join(", ")}</p>
+        <p className="mt-1.5 text-[10px] text-ok-400">Requiere: {selected.map(eppLabel).join(", ")}</p>
       )}
     </>
   );
