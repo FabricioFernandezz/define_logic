@@ -266,7 +266,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     defaultZoneEpp,
     defaultZoneActive,
     defaultZoneRequirePerson,
-  }), [zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson]);
+  }), [cameraSource, zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson]);
 
   // Webcam only: grab a frame from the canvas and push the JPEG bytes over the socket.
   const sendFrame = useCallback(async () => {

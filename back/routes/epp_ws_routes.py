@@ -8,12 +8,9 @@ import jwt
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 from back.services.auth_service import decode_access_token
-from back.services.epp_service import detect_epp_from_url, process_frame_bytes
+from back.services.epp_service import IpCameraStream, process_frame_bytes
 
 router = APIRouter()
-
-# Throttle between server-driven IP-camera frames to avoid a busy loop.
-IP_FRAME_INTERVAL_S = 0.2
 
 
 def _config_to_kwargs(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,19 +51,33 @@ async def epp_detect_ws(websocket: WebSocket) -> None:
     ip_task: Optional[asyncio.Task] = None
 
     async def ip_loop(camera_url: str) -> None:
-        # Server-driven push: fetch + infer + send until cancelled or the socket drops.
-        while True:
-            try:
-                payload = await detect_epp_from_url(camera_url, **_config_to_kwargs(config))
-                await websocket.send_text(json.dumps(payload))
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001 — surface to client, keep loop alive
+        # Server-driven push: ONE persistent connection to the camera; read + infer
+        # + send until cancelled or the socket drops. Reconnects with backoff on error.
+        stream = IpCameraStream(camera_url)
+        stream.start()
+        try:
+            while True:
                 try:
-                    await websocket.send_text(json.dumps({"error": str(exc)[:200]}))
-                except Exception:
-                    return
-            await asyncio.sleep(IP_FRAME_INTERVAL_S)
+                    # Always grab the freshest frame; the reader thread drops the
+                    # backlog so latency stays flat. Inference itself paces the loop.
+                    frame_bytes = await stream.latest_frame()
+                    payload = await asyncio.to_thread(
+                        process_frame_bytes,
+                        frame_bytes,
+                        **_config_to_kwargs(config),
+                        always_annotate=True,
+                    )
+                    await websocket.send_text(json.dumps(payload))
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 — surface to client, keep loop alive
+                    try:
+                        await websocket.send_text(json.dumps({"error": str(exc)[:200]}))
+                    except Exception:
+                        return
+                    await asyncio.sleep(0.5)
+        finally:
+            await stream.close()
 
     def _stop_ip() -> None:
         nonlocal ip_task

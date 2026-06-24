@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -553,6 +554,133 @@ def _annotate_zones_on_frame(
         text = f"{label}" + (f" -{','.join(missing)}" if missing else " OK")
         cv2.putText(image_bgr, text, (x1 + 4, y1 + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
     return image_bgr
+
+
+class IpCameraStream:
+    """Single persistent connection to an IP camera, with a background reader.
+
+    Reconnecting once per frame (the old behaviour) makes phone IP-camera apps
+    count a new client every poll and leaves half-open sockets behind, which
+    eventually exhausts the phone and triggers `timed out` / 502. This keeps ONE
+    connection.
+
+    A dedicated reader thread drains the MJPEG stream at full speed and keeps
+    ONLY the most recent frame. The inference loop pulls that latest frame, so
+    when inference is slower than the camera fps we drop the intermediate frames
+    instead of queueing them — no growing latency / delay.
+    """
+
+    _MAX_FRAME = 600_000
+    _BUFFER_GUARD = 2_000_000
+
+    def __init__(self, url: str, timeout: float = 5.0) -> None:
+        self.url = url
+        self.timeout = timeout
+        self._resp = None
+        self._buffer = b""
+        self._multipart = False
+        # Reader-thread state
+        self._latest: Optional[bytes] = None
+        self._err: Optional[Exception] = None
+        self._lock = threading.Lock()
+        self._new_frame = threading.Event()
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def _connect_sync(self) -> None:
+        credentials = base64.b64encode(b"admin:admin").decode("ascii")
+        req = urllib.request.Request(self.url, headers={
+            "User-Agent": "EppDetector/1.0",
+            "Authorization": f"Basic {credentials}",
+        })
+        self._resp = urllib.request.urlopen(req, timeout=self.timeout)
+        content_type = self._resp.headers.get("Content-Type", "")
+        self._multipart = "multipart" in content_type
+        self._buffer = b""
+
+    def _read_frame_sync(self) -> bytes:
+        if self._resp is None:
+            self._connect_sync()
+
+        if not self._multipart:
+            # Single-shot endpoint (e.g. /shot.jpg): read body, close, reconnect next call.
+            data = self._resp.read(self._MAX_FRAME)
+            self._close_sync()
+            return data
+
+        # Multipart MJPEG: pull JPEG frames off the same persistent socket.
+        while True:
+            start = self._buffer.find(b"\xff\xd8")
+            end = self._buffer.find(b"\xff\xd9", start + 2) if start >= 0 else -1
+            if start >= 0 and end >= 0:
+                frame = self._buffer[start : end + 2]
+                self._buffer = self._buffer[end + 2 :]
+                return frame
+            chunk = self._resp.read(4096)
+            if not chunk:
+                self._close_sync()
+                raise ConnectionError("stream ended")
+            self._buffer += chunk
+            if len(self._buffer) > self._BUFFER_GUARD:
+                self._buffer = self._buffer[-self._MAX_FRAME :]
+
+    def _close_sync(self) -> None:
+        if self._resp is not None:
+            try:
+                self._resp.close()
+            except Exception:  # noqa: BLE001
+                pass
+        self._resp = None
+        self._buffer = b""
+
+    def _reader_loop(self) -> None:
+        # Run full speed; keep only the newest frame so we never build a backlog.
+        while not self._stop.is_set():
+            try:
+                frame = self._read_frame_sync()
+                with self._lock:
+                    self._latest = frame
+                    self._err = None
+                self._new_frame.set()
+            except Exception as exc:  # noqa: BLE001
+                with self._lock:
+                    self._err = exc
+                self._close_sync()
+                self._new_frame.set()
+                if self._stop.wait(0.5):  # backoff before reconnecting
+                    break
+
+    def start(self) -> None:
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self._thread.start()
+
+    async def latest_frame(self, poll: float = 5.0) -> bytes:
+        """Most recent frame, consuming it so we don't re-process the same one.
+        Waits for a fresh frame; raises the reader's error if the stream broke."""
+        loop = asyncio.get_event_loop()
+
+        def _get() -> bytes:
+            while not self._stop.is_set():
+                with self._lock:
+                    if self._latest is not None:
+                        frame = self._latest
+                        self._latest = None
+                        return frame
+                    err = self._err
+                if err is not None:
+                    raise err
+                self._new_frame.wait(poll)
+                self._new_frame.clear()
+            raise ConnectionError("stream stopped")
+
+        return await loop.run_in_executor(None, _get)
+
+    async def close(self) -> None:
+        self._stop.set()
+        self._new_frame.set()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._close_sync)
 
 
 async def _fetch_frame_bytes(url: str, timeout: float = 5.0) -> bytes:
