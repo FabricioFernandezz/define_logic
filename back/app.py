@@ -7,10 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from back.config.database import init_database
 from back.routes.auth_routes import router as auth_router
+from back.routes.camera_routes import router as camera_router
 from back.routes.epp_routes import router as epp_router
 from back.routes.epp_ws_routes import router as epp_ws_router
 from back.routes.saved_detection_routes import router as saved_detection_router
 from back.services.epp_service import init_epp_model
+from back.services.saved_detection_service import ensure_storage_dirs
 
 app = FastAPI(title="DefineLogic", version="1.0.0")
 
@@ -24,8 +26,14 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(saved_detection_router)
+app.include_router(camera_router)
 app.include_router(epp_router)
 app.include_router(epp_ws_router)
+
+# Evidence images live on the filesystem; they are served by the authenticated
+# /api/saved-detections/image/{path} route (not a public static mount) so only a user
+# whose industry owns the image can read it.
+ensure_storage_dirs()
 
 
 @app.on_event("startup")

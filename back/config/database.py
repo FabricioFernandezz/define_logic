@@ -87,6 +87,21 @@ def init_database() -> None:
                 """
             )
         )
+        # Camaras dadas de alta por industria (multi-camara, configurables sin recompilar)
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS cameras (
+                    id SERIAL PRIMARY KEY,
+                    industry_id INTEGER NOT NULL REFERENCES industries(id),
+                    nombre VARCHAR(200) NOT NULL,
+                    url TEXT NOT NULL,
+                    activa BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
         # epp_zone_config.id == industry_id (una config por industria)
         connection.execute(
             text(

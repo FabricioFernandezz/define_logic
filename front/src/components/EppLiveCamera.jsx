@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import EppZoneEditor from "./EppZoneEditor";
-import { getZoneConfig, saveZoneConfig } from "../services/apiDetectionService";
+import {
+  getZoneConfig,
+  saveZoneConfig,
+  listCameras,
+  createCamera,
+  deleteCamera,
+} from "../services/apiDetectionService";
 import { openEppSocket } from "../services/eppSocketService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -15,7 +21,6 @@ const EPP_LABELS = {
   boots: "Botas",
 };
 const eppLabel = (cls) => EPP_LABELS[cls?.toLowerCase()] ?? cls;
-const IP_CAMERA_URL = "http://192.168.18.6:8081/";
 const SAMPLE_INTERVAL_MS = 1000;
 const COOLDOWN_SECS = 10;
 
@@ -42,6 +47,16 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const cameraSourceRef = useRef("webcam");
   const setCameraSource = (src) => { cameraSourceRef.current = src; setCameraSourceState(src); };
 
+  // Persisted IP cameras (multi-camera, configurable from the DB instead of a hardcoded URL)
+  const [cameras, setCameras] = useState([]);
+  const [selectedCameraId, setSelectedCameraId] = useState(null);
+  const selectedCameraUrlRef = useRef(null);
+  const [showCamForm, setShowCamForm] = useState(false);
+  const [newCamName, setNewCamName] = useState("");
+  const [newCamUrl, setNewCamUrl] = useState("");
+  const [camBusy, setCamBusy] = useState(false);
+  const selectedCamera = cameras.find((c) => c.id === selectedCameraId) || null;
+
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isEditingZones, setIsEditingZones] = useState(false);
@@ -60,8 +75,6 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const [livePersonCount, setLivePersonCount] = useState(0);
   const sessionInfractionsRef = useRef({});
   const [sessionInfractions, setSessionInfractions] = useState({});
-  const complianceBucketsRef = useRef([]);
-  const [complianceBuckets, setComplianceBuckets] = useState([]);
   const lastInfractionWindowRef = useRef(null);
 
   const FALLBACK_CLASSES = ["helmet", "vest", "glasses", "hardhat", "gloves", "mask", "boots"];
@@ -100,6 +113,64 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       .catch(() => {});
   }, []);
 
+  // Load persisted IP cameras on mount; auto-select the first one
+  const refreshCameras = useCallback(async () => {
+    try {
+      const list = await listCameras();
+      setCameras(list);
+      setSelectedCameraId((prev) => {
+        if (prev && list.some((c) => c.id === prev)) return prev;
+        return list[0]?.id ?? null;
+      });
+    } catch {
+      /* ignore — cameras simply unavailable */
+    }
+  }, []);
+
+  useEffect(() => { refreshCameras(); }, [refreshCameras]);
+
+  // Keep the URL ref in sync so the long-lived socket/config callbacks read the current camera
+  useEffect(() => {
+    selectedCameraUrlRef.current = selectedCamera?.url ?? null;
+  }, [selectedCamera]);
+
+  const handleAddCamera = async () => {
+    const nombre = newCamName.trim();
+    const url = newCamUrl.trim();
+    if (!nombre || !url) { setError("Nombre y URL son obligatorios"); return; }
+    setCamBusy(true);
+    try {
+      const cam = await createCamera({ nombre, url });
+      setCameras((prev) => [...prev, cam]);
+      setSelectedCameraId(cam.id);
+      setNewCamName("");
+      setNewCamUrl("");
+      setShowCamForm(false);
+      setError("");
+    } catch (err) {
+      setError(err?.message || "No se pudo crear la cámara");
+    } finally {
+      setCamBusy(false);
+    }
+  };
+
+  const handleDeleteCamera = async (id) => {
+    setCamBusy(true);
+    try {
+      await deleteCamera(id);
+      setCameras((prev) => prev.filter((c) => c.id !== id));
+      setSelectedCameraId((prev) => {
+        if (prev !== id) return prev;
+        const rest = cameras.filter((c) => c.id !== id);
+        return rest[0]?.id ?? null;
+      });
+    } catch (err) {
+      setError(err?.message || "No se pudo eliminar la cámara");
+    } finally {
+      setCamBusy(false);
+    }
+  };
+
   // Accumulate session stats — only on real detection events, not every frame
   useEffect(() => {
     if (!lastResult) return;
@@ -107,7 +178,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     // Person count: always update (cheap, just a number)
     setLivePersonCount(lastResult.personCount ?? lastResult.totalPersons ?? 0);
 
-    // Compliance + infractions: only when model processed a meaningful frame
+    // Infractions: only when model processed a meaningful frame
     const hasActivity =
       (lastResult.detections?.length ?? 0) > 0 ||
       lastResult.alert === true ||
@@ -115,22 +186,8 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
       lastResult.defaultZoneResult != null;
     if (!hasActivity) return;
 
-    // Compliance buckets — one entry per cooldown window (10s), immutable once written
     const windowMs = COOLDOWN_SECS * 1000;
     const windowTs = Math.floor(Date.now() / windowMs) * windowMs;
-    const buckets = complianceBucketsRef.current;
-    const last = buckets[buckets.length - 1];
-    if (last?.ts !== windowTs) {
-      const compliantEpp = (lastResult.detections || []).filter((d) => d.isCompliant).length;
-      const totalEpp = (lastResult.detections || []).length;
-      const compliantPct = totalEpp > 0
-        ? Math.round((compliantEpp / totalEpp) * 100)
-        : lastResult.alert ? 0 : 100;
-      const newBuckets = [...buckets, { ts: windowTs, compliantPct }];
-      if (newBuckets.length > 8) newBuckets.shift();
-      complianceBucketsRef.current = newBuckets;
-      setComplianceBuckets(newBuckets);
-    }
 
     // Infractions by zone+type — one event per cooldown window (not per frame)
     if (!lastResult.alert) return;
@@ -189,8 +246,6 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     setLivePersonCount(0);
     setSessionInfractions({});
     sessionInfractionsRef.current = {};
-    setComplianceBuckets([]);
-    complianceBucketsRef.current = [];
     lastInfractionWindowRef.current = null;
   }, []);
 
@@ -254,7 +309,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const buildConfigMsg = useCallback(() => ({
     type: "config",
     mode: cameraSourceRef.current === "ip" ? "ip" : "webcam",
-    camera_url: cameraSourceRef.current === "ip" ? IP_CAMERA_URL : undefined,
+    camera_url: cameraSourceRef.current === "ip" ? (selectedCameraUrlRef.current || undefined) : undefined,
     zones: zones.map((z) => ({
       id: z.id,
       label: z.label,
@@ -266,7 +321,7 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
     defaultZoneEpp,
     defaultZoneActive,
     defaultZoneRequirePerson,
-  }), [cameraSource, zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson]);
+  }), [cameraSource, selectedCameraId, zones, defaultZoneEpp, defaultZoneActive, defaultZoneRequirePerson]);
 
   // Webcam only: grab a frame from the canvas and push the JPEG bytes over the socket.
   const sendFrame = useCallback(async () => {
@@ -307,6 +362,10 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
   const startCamera = useCallback(async () => {
     setError("");
     if (cameraSourceRef.current === "ip") {
+      if (!selectedCameraUrlRef.current) {
+        setError("Selecciona o agrega una cámara IP antes de conectar");
+        return;
+      }
       setIsActive(true);
       return;
     }
@@ -487,7 +546,77 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
                 </button>
               </div>
               {cameraSource === "ip" && (
-                <span className="text-[10px] text-steel-500">{IP_CAMERA_URL}</span>
+                <div className="flex w-72 flex-col items-stretch gap-2 rounded-2xl border border-[#2E2E33] bg-[#1C1C1F] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-steel-400">Cámaras IP</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowCamForm((v) => !v)}
+                      className="text-[11px] font-semibold text-[#FDBA74] hover:text-white transition"
+                    >
+                      {showCamForm ? "Cancelar" : "+ Agregar"}
+                    </button>
+                  </div>
+
+                  {cameras.length === 0 && !showCamForm && (
+                    <p className="text-[11px] text-steel-500">No hay cámaras. Agrega una con su URL.</p>
+                  )}
+
+                  {cameras.map((cam) => (
+                    <div
+                      key={cam.id}
+                      className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 transition ${
+                        selectedCameraId === cam.id
+                          ? "border-[#F97316]/40 bg-[#F97316]/10"
+                          : "border-[#2A2A2E] bg-[#161618] hover:border-[#444448]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCameraId(cam.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="truncate text-xs font-medium text-white">{cam.nombre}</p>
+                        <p className="truncate text-[10px] text-steel-500">{cam.url}</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCamera(cam.id)}
+                        disabled={camBusy}
+                        className="shrink-0 rounded-lg border border-warn-500/30 bg-warn-500/10 px-2 py-1 text-[10px] text-warn-300 transition hover:bg-warn-500/20 disabled:opacity-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+
+                  {showCamForm && (
+                    <div className="flex flex-col gap-2 border-t border-[#2A2A2E] pt-2">
+                      <input
+                        type="text"
+                        value={newCamName}
+                        onChange={(e) => setNewCamName(e.target.value)}
+                        placeholder="Nombre (ej. Portón norte)"
+                        className="rounded-lg border border-[#2A2A2E] bg-[#161618] px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#F97316]/50"
+                      />
+                      <input
+                        type="text"
+                        value={newCamUrl}
+                        onChange={(e) => setNewCamUrl(e.target.value)}
+                        placeholder="URL (http://192.168.x.x:8081/)"
+                        className="rounded-lg border border-[#2A2A2E] bg-[#161618] px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#F97316]/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCamera}
+                        disabled={camBusy}
+                        className="rounded-lg bg-[#F97316]/20 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-[#F97316]/40 transition hover:bg-[#F97316]/30 disabled:opacity-50"
+                      >
+                        {camBusy ? "Guardando…" : "Guardar cámara"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
               <div className="flex flex-row gap-2">
                 <button
@@ -509,7 +638,9 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
           ) : (
             <div className="flex flex-col items-end gap-2">
               <span className="text-[10px] text-steel-500">
-                {cameraSource === "ip" ? `Cámara IP · ${IP_CAMERA_URL}` : "Cámara web"}
+                {cameraSource === "ip"
+                  ? `Cámara IP · ${selectedCamera?.nombre || ""}${selectedCamera ? ` (${selectedCamera.url})` : ""}`
+                  : "Cámara web"}
               </span>
               <div className="flex flex-row gap-2">
                 {!isPaused ? (
@@ -701,7 +832,9 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
               </h3>
               <p className="mt-2 max-w-lg text-sm leading-6 text-steel-400">
                 {cameraSource === "ip"
-                  ? `Click en "Conectar cámara IP" para iniciar stream desde ${IP_CAMERA_URL}`
+                  ? selectedCamera
+                    ? `Click en "Conectar cámara IP" para iniciar stream desde ${selectedCamera.url}`
+                    : `Agrega o selecciona una cámara IP para iniciar el stream.`
                   : `Click en "Activar cámara EPP" para iniciar la detección en tiempo real.`}
               </p>
             </div>
@@ -747,40 +880,9 @@ export default function EppLiveCamera({ active = true, onEppCameraDetection }) {
         )}
       </div>
 
-      {/* Session stats: compliance history + infractions by zone */}
+      {/* Session stats: infractions by zone */}
       {!isEditingZones && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {/* Compliance per-minute bars */}
-          <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-[#0F0F11]/60 p-4">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-steel-400">Cumplimiento EPP · últimas detecciones</p>
-            {complianceBuckets.length > 0 ? (
-              <div className="mt-3 space-y-2.5">
-                {complianceBuckets.map((bucket, i) => {
-                  const nonCompliantPct = 100 - (bucket.compliantPct ?? 100);
-                  const isOk = nonCompliantPct === 0;
-                  return (
-                    <div key={i} className="flex items-center gap-3 text-xs">
-                      <span className="w-14 shrink-0 text-right tabular-nums text-steel-500">
-                        {new Date(bucket.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                      </span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#2A2A2E]">
-                        <div
-                          className={`h-full rounded-full ${isOk ? "bg-ok-500" : "bg-warn-500"}`}
-                          style={{ width: isOk ? "100%" : `${Math.max(nonCompliantPct, 8)}%` }}
-                        />
-                      </div>
-                      <span className={`w-16 shrink-0 text-right font-semibold tabular-nums ${isOk ? "text-ok-300" : "text-warn-300"}`}>
-                        {!isOk && nonCompliantPct < 100 ? `${nonCompliantPct}%` : ""}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-steel-500">Acumulando datos…</p>
-            )}
-          </div>
-
+        <div className="mt-4">
           {/* Infractions by zone + EPP type */}
           <div className="rounded-[1.75rem] border border-[#2A2A2E] bg-[#0F0F11]/60 p-4">
             <p className="text-[10px] uppercase tracking-[0.25em] text-steel-400">Infracciones · sesión actual</p>
