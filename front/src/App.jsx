@@ -91,7 +91,7 @@ const buildEppCameraEntry = (frameData) => {
       personIndex: i + 1,
     })),
     processingTimeMs: 0,
-    modelName: "yolo26_epp",
+    modelName: "epp_models",
     zoneResults,
     alertingZones,
     defaultZoneResult: frameData.result.defaultZoneResult ?? null,

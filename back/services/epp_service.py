@@ -18,13 +18,13 @@ from fastapi import HTTPException, UploadFile
 project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
-EPP_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best7v2.onnx"
+EPP_MODEL_PATH = project_root / "ml" / "runs" / "epp_models" / "best7v2.onnx"
 EPP_CONF_THRESHOLD = 0.60
 PERSON_CONF_THRESHOLD = 0.10  # Lower threshold for person class — EPP check needs person detected
 
 # Harness model — separate from the EPP model. Runs only when a zone (or the default
 # zone) requires harness detection, so it adds no cost when nobody asks for it.
-ARNES_MODEL_PATH = project_root / "ml" / "runs" / "yolo26_epp" / "best-arnes-v2.onnx"
+ARNES_MODEL_PATH = project_root / "ml" / "runs" / "epp_models" / "best-arnes-v2.onnx"
 ARNES_CONF_THRESHOLD = 0.60
 # Labels that should trigger the harness model. The model's own class is "harness";
 # "arnes"/"arnés" are accepted as Spanish aliases in case the UI stores those.
@@ -50,20 +50,6 @@ def _parse_json_list(raw: Optional[str]) -> list:
         return []
 
 
-def _normalize_bbox(x1: float, y1: float, x2: float, y2: float, img_w: int, img_h: int) -> Dict[str, float]:
-    """Pixel box (x1,y1,x2,y2) -> normalized (x,y,w,h) in [0,1], same convention as zones.
-    Keeps the Structured Event resolution-independent so downstream consumers (rules engine,
-    Dashboard) don't depend on the camera's pixel size."""
-    if img_w <= 0 or img_h <= 0:
-        return {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
-    return {
-        "x": round(x1 / img_w, 6),
-        "y": round(y1 / img_h, 6),
-        "w": round((x2 - x1) / img_w, 6),
-        "h": round((y2 - y1) / img_h, 6),
-    }
-
-
 def _is_non_compliant(label: str) -> bool:
     lower = label.lower()
     return any(lower.startswith(kw) or f"_{kw.strip('_')}" in lower for kw in NON_COMPLIANT_KEYWORDS) or \
@@ -79,7 +65,7 @@ def init_epp_model() -> None:
     if not EPP_MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Modelo EPP no encontrado: {EPP_MODEL_PATH}. "
-            "Verifica que el archivo best7v2.onnx existe en ml/runs/yolo26_epp/"
+            "Verifica que el archivo best7v2.onnx existe en ml/runs/epp_models/"
         )
 
     try:
@@ -106,7 +92,7 @@ def init_arnes_model() -> None:
     if not ARNES_MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Modelo de arnés no encontrado: {ARNES_MODEL_PATH}. "
-            "Verifica que el archivo best-arnes-v2.onnx existe en ml/runs/yolo26_epp/"
+            "Verifica que el archivo best-arnes-v2.onnx existe en ml/runs/epp_models/"
         )
 
     try:
@@ -134,7 +120,6 @@ def _config_requires_arnes(zones: List[Dict[str, Any]], default_epp: List[str]) 
 def _run_arnes_inference(image_rgb: np.ndarray, camera_id: Optional[str] = None) -> List[Dict[str, Any]]:
     results = _arnes_model(image_rgb, conf=ARNES_CONF_THRESHOLD, verbose=False)
     detections: List[Dict[str, Any]] = []
-    img_h, img_w = image_rgb.shape[:2]
     ts = datetime.now(timezone.utc).isoformat()
 
     for result in results:
@@ -157,7 +142,6 @@ def _run_arnes_inference(image_rgb: np.ndarray, camera_id: Optional[str] = None)
                     "camera_id": camera_id,
                     "timestamp": ts,
                     "bbox_pixels": [x1, y1, x2, y2],
-                    "bbox": _normalize_bbox(x1, y1, x2, y2, img_w, img_h),
                     "label": label,
                     "confidence": float(conf),
                     "isCompliant": not _is_non_compliant(label),
@@ -172,7 +156,6 @@ def _run_inference(image_rgb: np.ndarray, camera_id: Optional[str] = None) -> Li
     min_conf = min(EPP_CONF_THRESHOLD, PERSON_CONF_THRESHOLD)
     results = _epp_model(image_rgb, conf=min_conf, verbose=False)
     detections: List[Dict[str, Any]] = []
-    img_h, img_w = image_rgb.shape[:2]
     ts = datetime.now(timezone.utc).isoformat()
 
     for result in results:
@@ -195,7 +178,6 @@ def _run_inference(image_rgb: np.ndarray, camera_id: Optional[str] = None) -> Li
                     "camera_id": camera_id,
                     "timestamp": ts,
                     "bbox_pixels": [x1, y1, x2, y2],
-                    "bbox": _normalize_bbox(x1, y1, x2, y2, img_w, img_h),
                     "label": label,
                     "confidence": float(conf),
                     "isCompliant": not _is_non_compliant(label),
@@ -283,7 +265,7 @@ async def detect_epp_image(file: UploadFile) -> Dict[str, Any]:
     processing_time_ms = int((time.perf_counter() - started_at) * 1000)
 
     return {
-        "modelName": "yolo26_epp",
+        "modelName": "epp_models",
         "processingTimeMs": processing_time_ms,
         "imageSize": {"width": int(image_bgr.shape[1]), "height": int(image_bgr.shape[0])},
         "detections": display_detections,
