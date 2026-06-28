@@ -16,11 +16,14 @@ router = APIRouter()
 def _config_to_kwargs(cfg: Dict[str, Any]) -> Dict[str, Any]:
     zones = cfg.get("zones")
     default_epp = cfg.get("defaultZoneEpp")
+    mode = cfg.get("mode")
+    camera_id = cfg.get("camera_url") if mode == "ip" else ("webcam" if mode == "webcam" else None)
     return {
         "zones_raw": json.dumps(zones) if zones else None,
         "default_zone_epp_raw": json.dumps(default_epp) if default_epp else None,
         "default_zone_active_raw": "true" if cfg.get("defaultZoneActive", True) else "false",
         "default_zone_require_person_raw": "true" if cfg.get("defaultZoneRequirePerson", False) else "false",
+        "camera_id": camera_id,
     }
 
 

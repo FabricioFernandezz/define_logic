@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -47,6 +48,20 @@ def _parse_json_list(raw: Optional[str]) -> list:
         return val if isinstance(val, list) else []
     except (json.JSONDecodeError, TypeError):
         return []
+
+
+def _normalize_bbox(x1: float, y1: float, x2: float, y2: float, img_w: int, img_h: int) -> Dict[str, float]:
+    """Pixel box (x1,y1,x2,y2) -> normalized (x,y,w,h) in [0,1], same convention as zones.
+    Keeps the Structured Event resolution-independent so downstream consumers (rules engine,
+    Dashboard) don't depend on the camera's pixel size."""
+    if img_w <= 0 or img_h <= 0:
+        return {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
+    return {
+        "x": round(x1 / img_w, 6),
+        "y": round(y1 / img_h, 6),
+        "w": round((x2 - x1) / img_w, 6),
+        "h": round((y2 - y1) / img_h, 6),
+    }
 
 
 def _is_non_compliant(label: str) -> bool:
@@ -116,9 +131,11 @@ def _config_requires_arnes(zones: List[Dict[str, Any]], default_epp: List[str]) 
     return any(str(e).lower() in ARNES_LABELS for e in default_epp)
 
 
-def _run_arnes_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
+def _run_arnes_inference(image_rgb: np.ndarray, camera_id: Optional[str] = None) -> List[Dict[str, Any]]:
     results = _arnes_model(image_rgb, conf=ARNES_CONF_THRESHOLD, verbose=False)
     detections: List[Dict[str, Any]] = []
+    img_h, img_w = image_rgb.shape[:2]
+    ts = datetime.now(timezone.utc).isoformat()
 
     for result in results:
         if result.boxes is None:
@@ -137,7 +154,10 @@ def _run_arnes_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
                 {
                     # Offset ids so they don't collide with EPP detection ids (React keys)
                     "id": 1000 + i,
+                    "camera_id": camera_id,
+                    "timestamp": ts,
                     "bbox_pixels": [x1, y1, x2, y2],
+                    "bbox": _normalize_bbox(x1, y1, x2, y2, img_w, img_h),
                     "label": label,
                     "confidence": float(conf),
                     "isCompliant": not _is_non_compliant(label),
@@ -147,11 +167,13 @@ def _run_arnes_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
     return detections
 
 
-def _run_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
+def _run_inference(image_rgb: np.ndarray, camera_id: Optional[str] = None) -> List[Dict[str, Any]]:
     # Run with the lowest threshold so both person and EPP classes are captured in one pass
     min_conf = min(EPP_CONF_THRESHOLD, PERSON_CONF_THRESHOLD)
     results = _epp_model(image_rgb, conf=min_conf, verbose=False)
     detections: List[Dict[str, Any]] = []
+    img_h, img_w = image_rgb.shape[:2]
+    ts = datetime.now(timezone.utc).isoformat()
 
     for result in results:
         if result.boxes is None:
@@ -170,7 +192,10 @@ def _run_inference(image_rgb: np.ndarray) -> List[Dict[str, Any]]:
             detections.append(
                 {
                     "id": i,
+                    "camera_id": camera_id,
+                    "timestamp": ts,
                     "bbox_pixels": [x1, y1, x2, y2],
+                    "bbox": _normalize_bbox(x1, y1, x2, y2, img_w, img_h),
                     "label": label,
                     "confidence": float(conf),
                     "isCompliant": not _is_non_compliant(label),
@@ -249,7 +274,7 @@ async def detect_epp_image(file: UploadFile) -> Dict[str, Any]:
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     # Image-test path runs both models so the user can validate EPP + harness at once
-    detections = _run_inference(image_rgb) + _run_arnes_inference(image_rgb)
+    detections = _run_inference(image_rgb, "upload") + _run_arnes_inference(image_rgb, "upload")
     person_count = sum(1 for d in detections if d["label"].lower() in PERSON_LABELS)
     display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
     summary = _build_summary(display_detections)
@@ -424,11 +449,12 @@ def _process_decoded(
     default_zone_active_raw: Optional[str] = "true",
     default_zone_require_person_raw: Optional[str] = "false",
     always_annotate: bool = False,
+    camera_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Shared inference + zone-compliance pipeline for an already-decoded BGR frame.
     Reused by the HTTP endpoints and the WebSocket channel."""
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    detections = _run_inference(image_rgb)
+    detections = _run_inference(image_rgb, camera_id)
     img_h, img_w = image_bgr.shape[:2]
 
     zones = _parse_json_list(zones_raw)
@@ -440,7 +466,7 @@ def _process_decoded(
     # then merge its boxes so zone compliance treats "harness" like any other EPP.
     if _config_requires_arnes(zones, default_epp):
         init_arnes_model()
-        detections = detections + _run_arnes_inference(image_rgb)
+        detections = detections + _run_arnes_inference(image_rgb, camera_id)
 
     # Persons and background labels are used internally or ignored — not shown in the display panel
     display_detections = [d for d in detections if d["label"].lower() not in PERSON_LABELS and d["label"].lower() not in SKIP_LABELS]
@@ -492,6 +518,7 @@ def process_frame_bytes(
     default_zone_active_raw: Optional[str] = "true",
     default_zone_require_person_raw: Optional[str] = "false",
     always_annotate: bool = False,
+    camera_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Decode raw JPEG bytes and run the detection pipeline. Sync — call via a
     thread executor from async contexts (the WebSocket handler) to avoid blocking."""
@@ -507,6 +534,7 @@ def process_frame_bytes(
         default_zone_active_raw,
         default_zone_require_person_raw,
         always_annotate,
+        camera_id,
     )
 
 
@@ -743,4 +771,5 @@ async def detect_epp_from_url(
         default_zone_active_raw,
         default_zone_require_person_raw,
         always_annotate=True,
+        camera_id=camera_url,
     )
